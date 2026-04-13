@@ -1,0 +1,9 @@
+numpy
+torch
+matplotlib
+scipy
+imageio
+wandb
+rdkit
+openbabel=3.1.0
+qvina=2.1
