@@ -279,34 +279,6 @@ DEMO can optimize and constrain the following properties. **You can easily add c
 | **Functional Properties** | | | |
 | Piezoelectric potential | `has_piezo_potential` | ALIGNN | Boolean flag for piezoelectric materials |
 
-### Adding Custom Properties
-
-To add your own property evaluator:
-
-1. Add a characterization function in `characterize_functions.py`:
-```python
-def characterize_my_property(data_dict: dict) -> dict:
-    structure = dict_to_structure(data_dict)
-    # Your evaluation logic here
-    my_value = compute_my_property(structure)
-    data_dict["my_property"] = my_value
-    return data_dict
-```
-
-2. Register it in `extract_all_properties()`:
-```python
-if "my_property" not in data_dict:
-    data_dict = characterize_my_property(data_dict)
-```
-
-3. Use it in constraints or objectives:
-```python
-my_constraints = {
-    "my_property": {"min": 0.5, "max": 2.0, "weight": 5.0}
-}
-objective_x = "my_property"
-```
-
 
 ---
 
@@ -341,19 +313,33 @@ denoised_batch = denoise_batch(
 
 ### Adding Custom Properties
 
-1. Add evaluation function in `characterize_functions.py`:
+To add your own property evaluator:
+
+1. Add a characterization function in `characterize_functions.py`:
 ```python
 def characterize_my_property(data_dict: dict) -> dict:
     structure = dict_to_structure(data_dict)
     # Your evaluation logic here
-    data_dict["my_property"] = computed_value
+    my_value = compute_my_property(structure)
+    data_dict["my_property"] = my_value
     return data_dict
 ```
 
-2. Register in `extract_all_properties()`:
+2. Register it in `extract_all_properties()`:
 ```python
 if "my_property" not in data_dict:
     data_dict = characterize_my_property(data_dict)
+```
+
+3. Use it in constraints or objectives:
+```python
+my_constraints = {
+    "my_property": {"min": 0.5, "max": 2.0, "weight": 5.0}
+}
+my_objectives = {
+        "my_property": "minimize",
+        "my_property": "maximize"
+    }
 ```
 
 ### Custom Evolutionary Operators
