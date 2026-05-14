@@ -17,7 +17,7 @@ logger.level("ERROR")
 
 
 def relax_atoms(
-    atoms: list[Atoms], device: str = str(get_device()), potential_load_path: str = None, output_path: str | None = None, **kwargs
+    atoms: list[Atoms], device: str = str(get_device()), potential_load_path: str = 'mattersim-v1.0.0-5m.pth', output_path: str | None = None, **kwargs
 ) -> tuple[list[Atoms], np.ndarray]:
     potential = Potential.from_checkpoint(
         device=device, load_path=potential_load_path, load_training_state=False

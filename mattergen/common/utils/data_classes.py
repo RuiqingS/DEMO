@@ -76,6 +76,22 @@ class MatterGenCheckpointInfo:
             config_overrides=config_overrides or [],
             load_epoch="last",
         )
+    
+    @classmethod
+    def from_local(
+        cls,
+        model_name: PRETRAINED_MODEL_NAME,
+        config_overrides: list[str] = None,
+    ):
+        root = Path.cwd()
+        config_path = f"{root}/checkpoints/{model_name}/config.yaml"
+        return cls(
+            model_path=Path(config_path).parent,
+            config_overrides=config_overrides or [],
+            load_epoch="last",
+        )
+    
+
 
     def as_dict(self) -> dict[str, Any]:
         d = asdict(self)

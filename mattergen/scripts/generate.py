@@ -71,7 +71,7 @@ def main(
     target_compositions = target_compositions or []
 
     if pretrained_name is not None:
-        checkpoint_info = MatterGenCheckpointInfo.from_hf_hub(
+        checkpoint_info = MatterGenCheckpointInfo.from_local(
             pretrained_name, config_overrides=config_overrides
         )
     else:
