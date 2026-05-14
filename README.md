@@ -191,28 +191,13 @@ my_constraints = {
 - **Similarity thresholds**: Prevent population convergence by removing structurally similar individuals. Adjust based on your diversity requirements.
 - **Constraint weights**: Higher weights impose stricter penalties for constraint violations. Use 10.0+ for hard constraints.
 
-### Advanced: Custom EMO Engine
-
-```python
-from EMO_frameworks import TriplePopCMOEAEngine
-
-# Use triple-population CMOEA
-engine = TriplePopCMOEAEngine(
-    constraints=constraints,
-    objectives=objectives,
-    max_size_c=50,  # Feasible elite size
-    max_size_b=30,  # Infeasible guide size
-    max_size_a=20,  # Diverse exploration size
-)
-```
-
 ---
 
 ## Optimization Results
 
 ### Example: 2D Material Discovery
 
-Below is an example Pareto front discovered by DEMO when optimizing for low energy above hull and high band gap in 2D materials (with upon constraints):
+Below is an example Pareto front discovered by DEMO when optimizing for low energy above hull and high band gap in 2D materials (subject to the above constraints):
 
 <p align="center">
     <img src="DEMO/assets/FINAL_PARETO_FRONTS.png" alt="Pareto Front Example" width="700"/>
