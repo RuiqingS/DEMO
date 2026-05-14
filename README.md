@@ -181,7 +181,7 @@ my_constraints = {
             "banned": [1],
             "weight": 1.0
         },
-        "has_piezo_potential": {"expected": True, "weight": 5.0} 
+        # "has_piezo_potential": {"expected": True, "weight": 5.0} 
     }
 ```
 
