@@ -173,7 +173,7 @@ my_constraints = {
             "banned": [
                 "Hg", "Tl", "Na", "K", "F" 
             ],
-            "allowed_only": ["Mo", "W", "V", "Nb", "S", "Se", "Te", "O"],
+            # "allowed_only": ["Mo", "W", "V", "Nb", "S", "Se", "Te", "O"],
             "weight": 5.0  
         },
         "sg_number": {
@@ -212,7 +212,7 @@ engine = TriplePopCMOEAEngine(
 
 ### Example: 2D Material Discovery
 
-Below is an example Pareto front discovered by DEMO when optimizing for low energy above hull and high band gap in 2D materials:
+Below is an example Pareto front discovered by DEMO when optimizing for low energy above hull and high band gap in 2D materials (with upon constraints):
 
 <p align="center">
     <img src="DEMO/assets/FINAL_PARETO_FRONTS.png" alt="Pareto Front Example" width="700"/>
