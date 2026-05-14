@@ -215,7 +215,7 @@ engine = TriplePopCMOEAEngine(
 Below is an example Pareto front discovered by DEMO when optimizing for low energy above hull and high band gap in 2D materials:
 
 <p align="center">
-    <img src="assets/FINAL_PARETO_FRONTS.png" alt="Pareto Front Example" width="700"/>
+    <img src="DEMO/assets/FINAL_PARETO_FRONTS.png" alt="Pareto Front Example" width="700"/>
 </p>
 
 
