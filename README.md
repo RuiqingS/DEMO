@@ -8,6 +8,8 @@ Official code release for the paper **"Diffusion-based Evolutionary Optimization
 
 This repository provides the implementation of **DEMO**, a zero-shot optimization framework that bridges the global search capabilities of Evolutionary Algorithms (EAs) with the physical validity of 3D diffusion models to solve complex Constrained Multi-Objective Optimization Problems (CMOPs) in 3D molecular design.
 
+# for crystal EMO please visit other branch in https://github.com/RuiqingS/DEMO/tree/DEMO_Crystal_MatterGen
+
 ## Environment Installation
 
 Create a new conda environment and install the required packages:
