@@ -80,6 +80,7 @@ Comprehensive material property characterization:
 1. Install MatterGen following the [main repository instructions](../README.md)
 2. Install additional dependencies:
 ```bash
+cd DEMO/
 pip install -r reuiirmentsDEMO.txt
 ```
 
