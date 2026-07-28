@@ -37,7 +37,7 @@ import numpy as np
 import os
 import evis
 from MOEA import DEMO
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
 use_EDM = True
 from MOEA import DEMO
 

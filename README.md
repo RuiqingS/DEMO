@@ -81,3 +81,31 @@ code Bibtex
 Acknowledgements
 
 This repo is built upon the previous excellent work EDM and GeoLDM. We sincerely thank the authors for open-sourcing their codebases!
+
+## Reproducible experiment runtime
+
+The refactored runtime adds JSONL metric recording, GPU-aware suite launching,
+completed-run skipping, offline plots, and paper-table generation while keeping
+the original evolutionary and diffusion methods intact.
+
+Under WSL Ubuntu 18.04 with the `cgm310` Conda environment:
+
+```bash
+bash scripts/run_suite.sh \
+  --suite qm9_cmop \
+  --gpus 0,1 \
+  --skip-completed \
+  --plot \
+  --summarize
+```
+
+Run every experiment family with:
+
+```bash
+bash scripts/run_all_revision.sh --gpus 0,1,2,3
+```
+
+See [`docs/EXPERIMENT_RUNTIME.md`](docs/EXPERIMENT_RUNTIME.md) for suite
+configuration, JSONL schemas, plotting, summary tables, and the configurable
+QM9-CMOP interface. A command-oriented Chinese manual is available at
+[`docs/COMMANDS_ZH.md`](docs/COMMANDS_ZH.md).

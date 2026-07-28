@@ -1,0 +1,54 @@
+{
+  "suite_id": "qm9_struct_cmop",
+  "description": "QM9 fragment-assembly constrained multi-objective experiments.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "struct_spea2",
+      "type": "structure_constrained_multi_objective",
+      "problem": "qm9_multi_fragment",
+      "method": "SPEA2",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_ccmo",
+      "type": "structure_constrained_multi_objective",
+      "problem": "qm9_multi_fragment",
+      "method": "CCMO",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_CCMO.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_cmoeacd",
+      "type": "structure_constrained_multi_objective",
+      "problem": "qm9_multi_fragment",
+      "method": "CMOEACD",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_CMOEACD.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_demo",
+      "type": "structure_constrained_multi_objective",
+      "problem": "qm9_multi_fragment",
+      "method": "DEMO",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_DEMO.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_topn",
+      "type": "structure_constrained_multi_objective",
+      "problem": "qm9_multi_fragment",
+      "method": "TopN",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_topn.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "HV", "direction": "max"},
+    {"name": "FeasibleRate", "direction": "max"},
+    {"name": "AvgConstraint", "direction": "min"},
+    {"name": "UVR", "direction": "max"},
+    {"name": "UUVR", "direction": "max"}
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "suite_id": "qm9_mop",
+  "description": "QM9 unconstrained multi-objective experiments.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "qm9_mop_spea2",
+      "type": "multi_objective",
+      "problem": "qm9_property_combinations",
+      "method": "SPEA2",
+      "entrypoint": "task4_dual_pareto_optimize.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "qm9_mop_demo",
+      "type": "multi_objective",
+      "problem": "qm9_property_combinations",
+      "method": "DEMO",
+      "entrypoint": "task4_dual_pareto_optimize_DEMO.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "qm9_mop_topn",
+      "type": "multi_objective",
+      "problem": "qm9_property_combinations",
+      "method": "TopN",
+      "entrypoint": "task4_dual_pareto_optimize_topn.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "HV", "direction": "max"},
+    {"name": "UUVR", "direction": "max"},
+    {"name": "score", "direction": "max"}
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "suite_id": "qm9_cmop",
+  "description": "Configurable predictor-only QM9 constrained multi-objective experiments.",
+  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+  "tasks": [
+    {
+      "id": "frontier_alignment_demo",
+      "type": "constrained_multi_objective",
+      "problem": "qm9_frontier_alignment",
+      "method": "DEMO",
+      "module": "demo_runtime.qm9_cmop",
+      "args": [
+        "--problem-config",
+        "configs/problems/qm9_frontier_alignment.json",
+        "--seed",
+        "{seed}"
+      ],
+      "identity_files": [
+        "configs/problems/qm9_frontier_alignment.json"
+      ],
+      "checkpoint_paths": [
+        "tfgmodels/EDMsecond/generative_model_ema.npy",
+        "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+        "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+        "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+        "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+        "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+      ]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "hv", "direction": "max"},
+    {"name": "feasible_rate", "direction": "max"},
+    {"name": "mean_violation", "direction": "min"},
+    {"name": "validity", "direction": "max"},
+    {"name": "atom_stability", "direction": "max"},
+    {"name": "wall_time_seconds", "direction": "min"},
+    {"name": "property_predictor_calls", "direction": "min"}
+  ]
+}

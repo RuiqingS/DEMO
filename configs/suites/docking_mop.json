@@ -1,0 +1,39 @@
+{
+  "suite_id": "docking_mop",
+  "description": "Protein-pocket docking multi-objective experiments.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "docking_spea2",
+      "type": "docking",
+      "problem": "protein_pocket_mop",
+      "method": "SPEA2",
+      "entrypoint": "task5_drugs_MOP.py",
+      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+    },
+    {
+      "id": "docking_demo",
+      "type": "docking",
+      "problem": "protein_pocket_mop",
+      "method": "DEMO",
+      "entrypoint": "task5_drugs_MOP_DEMO.py",
+      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+    },
+    {
+      "id": "docking_topn",
+      "type": "docking",
+      "problem": "protein_pocket_mop",
+      "method": "TopN",
+      "entrypoint": "task5_drugs_MOP_topn.py",
+      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "HV", "direction": "max"},
+    {"name": "BestVina", "direction": "min"},
+    {"name": "BestQED", "direction": "min"},
+    {"name": "BestSA", "direction": "min"},
+    {"name": "FeasibleRate", "direction": "max"},
+    {"name": "UVR", "direction": "max"}
+  ]
+}

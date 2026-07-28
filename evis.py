@@ -5,7 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import math
-from pymoo.indicators.hv import Hypervolume
+try:
+    from pymoo.indicators.hv import Hypervolume
+except ImportError:
+    from demo_runtime.hypervolume import Hypervolume
 
 import numpy as np
 
@@ -61,9 +64,12 @@ class MultiRunTracker:
 
 class EvoTracker:
     def __init__(self):
+        self._demo_internal_run = -1
         self.reset()
 
     def reset(self):
+        self._demo_internal_run += 1
+        self._demo_generation = 0
         self.metrics = {}  # 存储 FR, SuccessRate, MeanVina, BestVina 等
         self.obj_raw = {}  # 存储每一代所有个体的 vina 原始值
         self.obj_feas = {}  # 存储每一代有效个体的 vina 值
@@ -86,6 +92,23 @@ class EvoTracker:
                 item[obj].item() if sum(item.get('structure_Con', [])) == 0 else None
                 for item in pop
             ])
+
+        # Optional append-only experiment recording.  The hook is inert for
+        # normal direct script execution and is enabled by the suite launcher
+        # through DEMO_RUN_* environment variables.
+        try:
+            from demo_runtime.recording import record_tracker_update
+            record_tracker_update(self, pop, obj_list, additional_metrics)
+        except Exception as exc:
+            # Recording must never alter the research algorithm's behavior.
+            # Persist the error when possible, but keep the legacy run alive.
+            try:
+                from demo_runtime.recording import get_env_recorder
+                recorder = get_env_recorder()
+                if recorder is not None:
+                    recorder.event("recording_error", error=repr(exc))
+            except Exception:
+                pass
 
     def calculate_docking_stats(self, pop, ref_obj=None):
         """
@@ -328,8 +351,6 @@ class EvoVisualizer:
         """
         import torch
         import numpy as np
-        from pymoo.indicators.hv import Hypervolume
-
         n_objs = len(obj_names)
 
         # 1. 提取完全合规的可行解

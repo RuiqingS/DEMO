@@ -36,7 +36,7 @@ import itertools
 import numpy as np
 import os
 import evis
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='qm9_latent2')
 

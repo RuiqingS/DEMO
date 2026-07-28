@@ -1,0 +1,73 @@
+{
+  "problem_id": "qm9_frontier_alignment",
+  "description": "High-polarizability, high-dipole QM9 molecules under a minimum gap and frontier-orbital midpoint constraint.",
+  "objectives": [
+    {
+      "name": "alpha",
+      "property": "alpha",
+      "direction": "max",
+      "unit": "bohr^3",
+      "bounds": [9.46, 143.53],
+      "display_name": "Polarizability"
+    },
+    {
+      "name": "mu",
+      "property": "mu",
+      "direction": "max",
+      "unit": "D",
+      "bounds": [0.0, 25.21],
+      "display_name": "Dipole moment"
+    }
+  ],
+  "derived_properties": [
+    {
+      "name": "frontier_midpoint",
+      "kind": "mean",
+      "inputs": ["homo", "lumo"],
+      "unit": "eV"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "minimum_gap",
+      "kind": "inequality",
+      "property": "gap",
+      "operator": ">=",
+      "threshold": 6.0,
+      "scale": 1.0,
+      "unit": "eV"
+    },
+    {
+      "name": "frontier_alignment",
+      "kind": "equality",
+      "property": "frontier_midpoint",
+      "target": -4.0,
+      "tolerance": 0.15,
+      "scale": 0.15,
+      "unit": "eV"
+    }
+  ],
+  "population_size": 32,
+  "generations": 20,
+  "min_nodes": 5,
+  "max_nodes": 29,
+  "hv_reference": 1.1,
+  "noise": {
+    "mode": "adaptive",
+    "initial": 1000,
+    "min": 0,
+    "max": 1000,
+    "step_size": 10,
+    "drop_factor": 0.5,
+    "use_hv_trigger": false
+  },
+  "runtime": {
+    "method": "DEMO",
+    "selection": "saes",
+    "min_dist_threshold": 0.05,
+    "resume": "tfgmodels/EDMsecond",
+    "args_file": "args.pickle",
+    "checkpoint": "generative_model_ema.npy",
+    "use_edm": true
+  }
+}

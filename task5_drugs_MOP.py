@@ -19,7 +19,7 @@ import os
 import evis
 import csv
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
 
 parser = argparse.ArgumentParser(description='e3_diffusion')
 parser.add_argument('--exp_name', type=str, default='debug_10')

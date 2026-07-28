@@ -1,0 +1,43 @@
+{
+  "suite_id": "qm9_single",
+  "description": "QM9 target-matching experiments.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "single_property_egd",
+      "type": "single_objective",
+      "problem": "qm9_single_property",
+      "method": "EGD",
+      "entrypoint": "task2_single_target_matching_MAE.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "single_property_topn",
+      "type": "single_objective",
+      "problem": "qm9_single_property",
+      "method": "TopN",
+      "entrypoint": "task2_single_target_matching_MAE_topn.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "multi_property_target_egd",
+      "type": "single_objective",
+      "problem": "qm9_multi_property_target",
+      "method": "EGD",
+      "entrypoint": "task2_target_matching_MAE.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "multi_property_target_topn",
+      "type": "single_objective",
+      "problem": "qm9_multi_property_target",
+      "method": "TopN",
+      "entrypoint": "task2_target_matching_MAE_topn.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "MMAE", "direction": "min"},
+    {"name": "score", "direction": "max"}
+  ]
+}

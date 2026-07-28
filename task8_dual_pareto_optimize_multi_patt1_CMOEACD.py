@@ -27,7 +27,7 @@ from MOEA import CMOEACD
 rdBase.DisableLog('rdApp.warning')
 rdBase.DisableLog('rdApp.error')
 use_EDM = False
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='qm9_latent2')
 parser.add_argument('--xtb', type=bool, default=False)
