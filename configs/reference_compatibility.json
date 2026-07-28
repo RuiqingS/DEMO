@@ -1,0 +1,59 @@
+{
+  "reference_root": "../GeoLDM",
+  "normalization": {
+    "gpu_assignment_pattern": "CUDA_VISIBLE_DEVICES",
+    "gpu_comment_pattern": "GPU visibility is controlled by scripts/run_suite.sh",
+    "backbone_import_pattern": "from demo_runtime.legacy import env_bool",
+    "unused_optimizer_pattern": "optim = get_optim(args, model)"
+  },
+  "experiments": [
+    {
+      "paper_role": "Table 2: EGD w/o CO",
+      "source": "task2_target_matching_MAE_woCO.py",
+      "target": "task2_target_matching_MAE_woCO.py",
+      "duplicate_command": false
+    },
+    {
+      "paper_role": "Table 2: EGD w/o MT",
+      "source": "task2_target_matching_MAE_woMT.py",
+      "target": "task2_target_matching_MAE_woMT.py",
+      "duplicate_command": false
+    },
+    {
+      "paper_role": "Table 3: Top-N",
+      "source": "task4_dual_pareto_optimize_topn.py",
+      "target": "task4_dual_pareto_optimize_topn.py",
+      "duplicate_command": true,
+      "ignore_unused_optimizer": true
+    },
+    {
+      "paper_role": "Table 3: SAES w/o CO",
+      "implementation_label": "SPEA2_woCO",
+      "source": "task4_dual_pareto_optimize_woCO.py",
+      "target": "task4_dual_pareto_optimize_woCO.py",
+      "duplicate_command": false
+    },
+    {
+      "paper_role": "Table 3: SAES w/o MT",
+      "implementation_label": "SPEA2_woMT",
+      "source": "task4_dual_pareto_optimize_woMT.py",
+      "target": "task4_dual_pareto_optimize_woMT.py",
+      "duplicate_command": false
+    },
+    {
+      "paper_role": "Table 5: Only PC / Only C",
+      "implementation_label": "HARD_DEMO_SAES",
+      "source": "task8_dual_pareto_optimize_multi_patt1_DEMO_SAES.py",
+      "target": "task8_dual_pareto_optimize_multi_patt1_DEMO_onlyC.py",
+      "duplicate_command": false,
+      "alias_note": "The reference SAES filename is the Only-PC/Only-C ablation."
+    },
+    {
+      "paper_role": "Table 5: DEMO w/o PB",
+      "implementation_label": "HARD_DEMO_woB",
+      "source": "task8_dual_pareto_optimize_multi_patt1_DEMO_woB.py",
+      "target": "task8_dual_pareto_optimize_multi_patt1_DEMO_woB.py",
+      "duplicate_command": false
+    }
+  ]
+}

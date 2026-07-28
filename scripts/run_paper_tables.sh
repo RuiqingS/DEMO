@@ -23,12 +23,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-bash "$SCRIPT_DIR/run_paper_tables.sh" \
-  --gpus "$GPUS" \
-  --results-root "$RESULTS_ROOT" \
-  "${EXTRA_ARGS[@]}"
-
-bash "$SCRIPT_DIR/run_reviewer_additions.sh" \
-  --gpus "$GPUS" \
-  --results-root "$RESULTS_ROOT" \
-  "${EXTRA_ARGS[@]}"
+# Tables 1 and 2 share qm9_single. Tables 3, 4, and 5 each have one suite.
+for SUITE in qm9_single qm9_mop docking_mop qm9_struct_cmop; do
+  bash "$SCRIPT_DIR/run_suite.sh" \
+    --suite "$SUITE" \
+    --gpus "$GPUS" \
+    --results-root "$RESULTS_ROOT" \
+    --skip-completed \
+    --plot \
+    --summarize \
+    "${EXTRA_ARGS[@]}"
+done

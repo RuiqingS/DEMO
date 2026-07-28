@@ -9,14 +9,42 @@
       "problem": "qm9_property_combinations",
       "method": "SPEA2",
       "entrypoint": "task4_dual_pareto_optimize.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
       "id": "qm9_mop_demo",
       "type": "multi_objective",
       "problem": "qm9_property_combinations",
-      "method": "DEMO",
+      "method": "SAES (Ours)",
       "entrypoint": "task4_dual_pareto_optimize_DEMO.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "qm9_mop_saes_wo_co",
+      "type": "multi_objective_ablation",
+      "problem": "qm9_property_combinations",
+      "method": "SAES w/o CO",
+      "entrypoint": "task4_dual_pareto_optimize_woCO.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "implementation_label": "SPEA2_woCO",
+      "reference_source": "../GeoLDM/task4_dual_pareto_optimize_woCO.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "qm9_mop_saes_wo_mt",
+      "type": "multi_objective_ablation",
+      "problem": "qm9_property_combinations",
+      "method": "SAES w/o MT",
+      "entrypoint": "task4_dual_pareto_optimize_woMT.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "implementation_label": "SPEA2_woMT",
+      "reference_source": "../GeoLDM/task4_dual_pareto_optimize_woMT.py",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
@@ -25,6 +53,10 @@
       "problem": "qm9_property_combinations",
       "method": "TopN",
       "entrypoint": "task4_dual_pareto_optimize_topn.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "reference_duplicate": "../GeoLDM/task4_dual_pareto_optimize_topn.py",
+      "duplicate_note": "The reference file is the same experiment; Table 3 SR and SE are checkpoints from one trace, so neither case requires a second launch.",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     }
   ],

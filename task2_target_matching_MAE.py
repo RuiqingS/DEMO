@@ -148,7 +148,8 @@ parser.add_argument('--normalization_factor', type=float, default=1,
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
 args = parser.parse_args()
-use_EDM = False
+from demo_runtime.legacy import env_bool
+use_EDM = env_bool("DEMO_USE_EDM", default=False)
 if use_EDM:
     args.resume = 'tfgmodels/EDMsecond'
 

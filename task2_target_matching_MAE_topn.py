@@ -1,4 +1,5 @@
-use_EDM = True
+from demo_runtime.legacy import env_bool
+use_EDM = env_bool("DEMO_USE_EDM", default=True)
 # Rdkit import should be first, do not move it
 import evo
 

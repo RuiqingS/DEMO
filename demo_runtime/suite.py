@@ -33,6 +33,7 @@ class ExpandedRun:
     args: tuple[str, ...]
     checkpoint_paths: tuple[str, ...]
     identity_files: tuple[str, ...]
+    environment: Mapping[str, str]
     raw_task: Mapping[str, Any]
 
     @property
@@ -97,6 +98,10 @@ def expand_runs(suite: Mapping[str, Any]) -> list[ExpandedRun]:
                     identity_files=tuple(
                         str(value) for value in task.get("identity_files", ())
                     ),
+                    environment={
+                        str(key): str(value)
+                        for key, value in task.get("environment", {}).items()
+                    },
                     raw_task=dict(task),
                 )
             )
@@ -183,6 +188,7 @@ def _run_one(
         "method": run.method,
         "seed": run.seed,
         "physical_gpu": gpu,
+        "backbone": run.raw_task.get("backbone"),
     }
     recorder = JsonlRunRecorder(run_dir, run_id, metadata)
     if skip_completed and recorder.is_complete():
@@ -202,11 +208,16 @@ def _run_one(
         "python_executable": sys.executable,
         "platform": sys.platform,
         "cuda_visible_devices": gpu,
+        "task_environment": dict(run.environment),
     }
     recorder.write_manifest(manifest)
     recorder.event("run_start", command=command)
     if dry_run:
-        print(f"[dry-run][GPU {gpu}] {' '.join(command)}")
+        environment = " ".join(
+            f"{key}={value}" for key, value in sorted(run.environment.items())
+        )
+        prefix = f"{environment} " if environment else ""
+        print(f"[dry-run][GPU {gpu}] {prefix}{' '.join(command)}")
         return run.task_id, "dry-run"
 
     env = os.environ.copy()
@@ -220,6 +231,7 @@ def _run_one(
     env["DEMO_RUN_METADATA"] = json.dumps(
         json_safe(metadata), ensure_ascii=False, separators=(",", ":")
     )
+    env.update(run.environment)
     env.setdefault("PYTHONUNBUFFERED", "1")
 
     stdout_path = run_dir / "stdout.log"
@@ -283,9 +295,18 @@ def run_suite(
     max_parallel_per_gpu: int = 1,
     skip_completed: bool = True,
     dry_run: bool = False,
+    task_ids: set[str] | None = None,
 ) -> list[tuple[str, str]]:
     suite = load_suite(suite_path)
     runs = expand_runs(suite)
+    if task_ids:
+        available = {run.task_id for run in runs}
+        missing = task_ids - available
+        if missing:
+            raise ValueError(
+                f"Unknown task ids for suite {suite['suite_id']}: {sorted(missing)}"
+            )
+        runs = [run for run in runs if run.task_id in task_ids]
     slots = [
         gpu
         for gpu in gpus
@@ -325,6 +346,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--task",
+        action="append",
+        default=[],
+        help="Run only this task id; repeat the option to select multiple tasks.",
+    )
+    parser.add_argument(
+        "--list-tasks",
+        action="store_true",
+        help="List task ids, methods, backbones, and duplicate notes, then exit.",
+    )
     parser.add_argument("--plot", action="store_true")
     parser.add_argument("--summarize", action="store_true")
     return parser
@@ -334,6 +366,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     suite_path = _resolve_suite_path(args.suite)
     suite = load_suite(suite_path)
+    if args.list_tasks:
+        for task in suite["tasks"]:
+            details = [
+                str(task["id"]),
+                f"method={task['method']}",
+                f"backbone={task.get('backbone', 'n/a')}",
+            ]
+            if task.get("duplicate_note"):
+                details.append(f"duplicate_note={task['duplicate_note']}")
+            print("\t".join(details))
+        return 0
     results_root = (REPO_ROOT / args.results_root).resolve()
     gpus = [value.strip() for value in args.gpus.split(",") if value.strip()]
     outcomes = run_suite(
@@ -343,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         max_parallel_per_gpu=args.max_parallel_per_gpu,
         skip_completed=args.skip_completed,
         dry_run=args.dry_run,
+        task_ids=set(args.task) or None,
     )
     counts: dict[str, int] = {}
     for _, status in outcomes:

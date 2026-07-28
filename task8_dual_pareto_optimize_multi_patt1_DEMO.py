@@ -26,7 +26,8 @@ def main():
 
     rdBase.DisableLog('rdApp.warning')
     rdBase.DisableLog('rdApp.error')
-    use_EDM = True
+    from demo_runtime.legacy import env_bool
+    use_EDM = env_bool("DEMO_USE_EDM", default=True)
     # GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
     parser = argparse.ArgumentParser(description='E3Diffusion')
     parser.add_argument('--exp_name', type=str, default='qm9_latent2')

@@ -38,7 +38,8 @@ import os
 import evis
 from MOEA import DEMO
 # GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
-use_EDM = False
+from demo_runtime.legacy import env_bool
+use_EDM = env_bool("DEMO_USE_EDM", default=False)
 from MOEA import DEMO
 
 parser = argparse.ArgumentParser(description='E3Diffusion')

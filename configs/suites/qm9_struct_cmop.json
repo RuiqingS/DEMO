@@ -9,6 +9,8 @@
       "problem": "qm9_multi_fragment",
       "method": "SPEA2",
       "entrypoint": "task8_dual_pareto_optimize_multi_patt1.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
@@ -17,22 +19,51 @@
       "problem": "qm9_multi_fragment",
       "method": "CCMO",
       "entrypoint": "task8_dual_pareto_optimize_multi_patt1_CCMO.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
       "id": "struct_cmoeacd",
       "type": "structure_constrained_multi_objective",
       "problem": "qm9_multi_fragment",
-      "method": "CMOEACD",
+      "method": "CMOEA-CD",
       "entrypoint": "task8_dual_pareto_optimize_multi_patt1_CMOEACD.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
       "id": "struct_demo",
       "type": "structure_constrained_multi_objective",
       "problem": "qm9_multi_fragment",
-      "method": "DEMO",
+      "method": "DEMO (Ours)",
       "entrypoint": "task8_dual_pareto_optimize_multi_patt1_DEMO.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_demo_wo_pb",
+      "type": "structure_constrained_multi_objective_ablation",
+      "problem": "qm9_multi_fragment",
+      "method": "DEMO w/o PB",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_DEMO_woB.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "reference_source": "../GeoLDM/task8_dual_pareto_optimize_multi_patt1_DEMO_woB.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "struct_only_pc",
+      "type": "structure_constrained_multi_objective_ablation",
+      "problem": "qm9_multi_fragment",
+      "method": "Only PC",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_DEMO_onlyC.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "reference_source": "../GeoLDM/task8_dual_pareto_optimize_multi_patt1_DEMO_SAES.py",
+      "duplicate_note": "The reference filename calls this SAES; it is the Table 5 Only-PC/Only-C experiment.",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
@@ -41,6 +72,8 @@
       "problem": "qm9_multi_fragment",
       "method": "TopN",
       "entrypoint": "task8_dual_pareto_optimize_multi_patt1_topn.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     }
   ],

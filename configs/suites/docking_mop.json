@@ -9,15 +9,19 @@
       "problem": "protein_pocket_mop",
       "method": "SPEA2",
       "entrypoint": "task5_drugs_MOP.py",
-      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDM_drugs/generative_model.npy"]
     },
     {
       "id": "docking_demo",
       "type": "docking",
       "problem": "protein_pocket_mop",
-      "method": "DEMO",
+      "method": "SAES (Ours)",
       "entrypoint": "task5_drugs_MOP_DEMO.py",
-      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDM_drugs/generative_model.npy"]
     },
     {
       "id": "docking_topn",
@@ -25,7 +29,9 @@
       "problem": "protein_pocket_mop",
       "method": "TopN",
       "entrypoint": "task5_drugs_MOP_topn.py",
-      "checkpoint_paths": ["outputs/drugs_latent2/generative_model.npy"]
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDM_drugs/generative_model.npy"]
     }
   ],
   "summary_metrics": [

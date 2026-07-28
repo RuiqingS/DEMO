@@ -108,4 +108,8 @@ bash scripts/run_all_revision.sh --gpus 0,1,2,3
 See [`docs/EXPERIMENT_RUNTIME.md`](docs/EXPERIMENT_RUNTIME.md) for suite
 configuration, JSONL schemas, plotting, summary tables, and the configurable
 QM9-CMOP interface. A command-oriented Chinese manual is available at
-[`docs/COMMANDS_ZH.md`](docs/COMMANDS_ZH.md).
+[`docs/COMMANDS_ZH.md`](docs/COMMANDS_ZH.md). The command-to-paper mapping,
+including Tables 1–5, the added ablations, and duplicate-launch notes, is in
+[`docs/PAPER_EXPERIMENT_COMMANDS_ZH.md`](docs/PAPER_EXPERIMENT_COMMANDS_ZH.md).
+The corresponding compatibility audit is recorded in
+[`docs/REFACTOR_CONSISTENCY_REPORT.md`](docs/REFACTOR_CONSISTENCY_REPORT.md).

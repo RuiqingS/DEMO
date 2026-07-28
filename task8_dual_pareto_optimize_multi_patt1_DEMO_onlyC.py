@@ -1,5 +1,5 @@
 from demo_runtime.legacy import env_bool
-use_EDM = env_bool("DEMO_USE_EDM", default=False)
+use_EDM = env_bool("DEMO_USE_EDM", default=True)
 # Rdkit import should be first, do not move it
 import evo
 
@@ -196,6 +196,7 @@ else:
     model, nodes_dist, prop_dist = get_latent_diffusion(args, device, dataset_info, None)
 
 model = model.to(device)
+optim = get_optim(args, model)
 # print(model)
 
 gradnorm_queue = utils.Queue()
@@ -239,7 +240,7 @@ def main():
     total_runs = 20  # 每个目标组合独立运行的次数 (seed 1 to 20)
     num_workers = 9
     USE_HV_TRIGGER = False
-    MOEA_NAME = 'HARD_SPEA2CDP2'
+    MOEA_NAME = 'HARD_DEMO_SAES'
 
     # 属性组合
     prop = ['alpha', 'gap', 'homo', 'lumo', 'mu', 'Cv']
@@ -283,8 +284,6 @@ def main():
         # ==========================================
         for run_idx in range(1, total_runs + 1):
             tolerance = 0
-
-
             current_save_dir = os.path.join(base_save_root, obj_str, f"run_{run_idx}")
             viz = evis.EvoVisualizer(
                 save_dir=current_save_dir,
@@ -311,7 +310,10 @@ def main():
             # --- D. 初始化种群 ---
             Pop = evo.InitPop(NPops, nodes_dist, args, device, model, dataset_info, prop_dist,
                               False, min_n_nodes, preds, max_n_nodes, True)
-            Pop = evo.Get_Fitness_Pareto(Pop, dataset_info, device, preds, max_n_nodes, Obj, pattcrops, tolerance, num_workers=num_workers)
+            Pop = DEMO.Get_Fitness_Pareto_Main(Pop, dataset_info, device, preds, max_n_nodes,
+                                         Obj, pattcrops, tolerance=0)
+            Pop = DEMO.EnvironmentalSelection_C_Archive2(Pop, NPops, Obj, dataset_info)
+
 
             scheduler = evo.AdaptiveNoiseScheduler(dataset_info=dataset_info, initial_noise=1000, min_noise=0,
                                                    max_noise=1000, step_size=20,
@@ -342,10 +344,10 @@ def main():
                 # 4.4 去噪与评估
                 lencross = len(Off1 + Off2)
                 Off = evo.denoise_same_level(Off1 + Off2 + Parent, model, max_n_nodes, device, dataset_info, preds,True)
-                Pop = evo.Get_Fitness_Pareto(Off + Pop, dataset_info, device, preds, max_n_nodes, Obj, pattcrops, tolerance, num_workers=num_workers)
-
-                # 4.5 环境选择
-                Pop = evo.EnvironmentalSelectionCon(Pop, NPops, Obj)
+                Off = DEMO.Get_Fitness_Pareto_Main(Off, dataset_info, device, preds, max_n_nodes,
+                                                             Obj,
+                                                             pattcrops, tolerance=0)
+                Pop = DEMO.EnvironmentalSelection_C_Archive2(deepcopy(Pop + Off), NPops, Obj, dataset_info)
 
                 current_noise = scheduler.update(Off=Off[0:lencross-1], Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj)
                 fr, avg_con = evo.get_fr_avgcon(Pop)

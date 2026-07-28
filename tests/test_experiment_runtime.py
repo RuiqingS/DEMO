@@ -8,6 +8,7 @@ import unittest
 
 from demo_runtime.recording import JsonlRunRecorder, read_jsonl
 from demo_runtime.hypervolume import Hypervolume
+from demo_runtime.legacy import env_bool
 from demo_runtime.plotting import plot_suite_results
 from demo_runtime.specs import ProblemSpec, UnitRegistry
 from demo_runtime.suite import expand_runs, load_suite
@@ -83,6 +84,23 @@ class HypervolumeTests(unittest.TestCase):
         self.assertEqual(metric.do([[1.2, 0.1]]), 0.0)
 
 
+class LegacyInterfaceTests(unittest.TestCase):
+    def test_backbone_override_preserves_default(self) -> None:
+        previous = os.environ.pop("DEMO_TEST_BOOL", None)
+        try:
+            self.assertTrue(env_bool("DEMO_TEST_BOOL", default=True))
+            self.assertFalse(env_bool("DEMO_TEST_BOOL", default=False))
+            os.environ["DEMO_TEST_BOOL"] = "1"
+            self.assertTrue(env_bool("DEMO_TEST_BOOL", default=False))
+            os.environ["DEMO_TEST_BOOL"] = "false"
+            self.assertFalse(env_bool("DEMO_TEST_BOOL", default=True))
+        finally:
+            if previous is None:
+                os.environ.pop("DEMO_TEST_BOOL", None)
+            else:
+                os.environ["DEMO_TEST_BOOL"] = previous
+
+
 class RecordingTests(unittest.TestCase):
     def test_completion_requires_final_completed_event(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -130,7 +148,14 @@ class SuiteAndSummaryTests(unittest.TestCase):
         suite_dir = REPO_ROOT / "configs" / "suites"
         for path in suite_dir.glob("*.json"):
             suite = load_suite(path)
-            self.assertTrue(expand_runs(suite), path.name)
+            runs = expand_runs(suite)
+            self.assertTrue(runs, path.name)
+            self.assertEqual(
+                len({(run.task_id, run.seed) for run in runs}), len(runs)
+            )
+            for run in runs:
+                if run.entrypoint:
+                    self.assertTrue((REPO_ROOT / run.entrypoint).exists())
 
     def test_qm9_cmop_problem_config_participates_in_run_identity(self) -> None:
         suite = load_suite(
@@ -141,6 +166,43 @@ class SuiteAndSummaryTests(unittest.TestCase):
             run.identity_files,
             ("configs/problems/qm9_frontier_alignment.json",),
         )
+
+    def test_paper_table_ablations_and_backbones_are_explicit(self) -> None:
+        expected = {
+            "qm9_single": {
+                "multi_property_target_egd_wo_co",
+                "multi_property_target_egd_wo_mt",
+            },
+            "qm9_mop": {
+                "qm9_mop_saes_wo_co",
+                "qm9_mop_saes_wo_mt",
+            },
+            "qm9_struct_cmop": {
+                "struct_demo_wo_pb",
+                "struct_only_pc",
+            },
+        }
+        for suite_name, required_ids in expected.items():
+            suite = load_suite(
+                REPO_ROOT / "configs" / "suites" / f"{suite_name}.json"
+            )
+            runs = expand_runs(suite)
+            self.assertTrue(required_ids <= {run.task_id for run in runs})
+            for run in runs:
+                if run.raw_task.get("backbone") == "EDM":
+                    self.assertEqual(run.environment.get("DEMO_USE_EDM"), "1")
+
+    def test_reference_compatibility_targets_exist(self) -> None:
+        config = json.loads(
+            (
+                REPO_ROOT / "configs" / "reference_compatibility.json"
+            ).read_text(encoding="utf-8")
+        )
+        for experiment in config["experiments"]:
+            self.assertTrue(
+                (REPO_ROOT / experiment["target"]).exists(),
+                experiment["paper_role"],
+            )
 
     def test_summary_uses_only_complete_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -130,7 +130,8 @@ def main():
                         help='Organize data by size to reduce average memory usage.')
     args = parser.parse_args()
 
-    use_EDM = False
+    from demo_runtime.legacy import env_bool
+    use_EDM = env_bool("DEMO_USE_EDM", default=False)
     if use_EDM:
         args.resume = 'tfgmodels/EDM_drugs'
     dataset_info = geom_with_h

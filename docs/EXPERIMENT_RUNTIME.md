@@ -35,6 +35,14 @@ bash scripts/run_suite.sh \
 
 # Run all five experiment families.
 bash scripts/run_all_revision.sh --gpus 0,1,2,3
+
+# List or select paper-table tasks.
+bash scripts/run_suite.sh --suite qm9_mop --list-tasks
+bash scripts/run_suite.sh \
+  --suite qm9_mop \
+  --task qm9_mop_saes_wo_co \
+  --task qm9_mop_saes_wo_mt \
+  --gpus 0,1
 ```
 
 Available suites:
@@ -47,10 +55,36 @@ Available suites:
 
 Every suite is a JSON document under `configs/suites/`. A task invokes either a
 legacy script through `entrypoint` or a refactored module through `module`.
+Paper-table tasks declare their diffusion `backbone` and an environment mapping
+such as `{"DEMO_USE_EDM": "1"}`. Directly invoking a legacy script still keeps
+that script's original backbone default; the suite override only makes a paper
+command explicit and reproducible.
 Files whose contents define an experiment, such as a custom CMOP problem JSON,
 belong in the task's `identity_files` list. Their SHA-256 hashes participate in
 the run id, so changing an objective or constraint cannot be mistaken for an
 already completed run.
+
+`--task TASK_ID` is repeatable and filters a suite without creating another
+configuration file. `--list-tasks` reports task ids, method labels, backbones,
+and known duplicate-command notes.
+
+The exact mapping for Tables 1–5, imported ablations, duplicate commands, and
+the reviewer QM9-CMOP experiment is documented in
+[`PAPER_EXPERIMENT_COMMANDS_ZH.md`](PAPER_EXPERIMENT_COMMANDS_ZH.md).
+
+## Legacy-reference consistency
+
+The imported Table 2, Table 3, and Table 5 ablations can be compared with the
+provided sibling `GeoLDM` reference directory:
+
+```bash
+python -m demo_runtime.consistency --reference-root ../GeoLDM
+```
+
+The audit normalizes only launcher-managed GPU visibility, the explicit
+backbone environment adapter (while preserving the old default), and the
+unused optimizer initialization in the duplicate Top-N reference. Other
+differences are reported as mismatches.
 
 ## Result contract
 

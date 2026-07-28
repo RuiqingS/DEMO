@@ -1,5 +1,3 @@
-from demo_runtime.legacy import env_bool
-use_EDM = env_bool("DEMO_USE_EDM", default=True)
 # Rdkit import should be first, do not move it
 import evo
 
@@ -7,22 +5,40 @@ try:
     from rdkit import Chem
 except ModuleNotFoundError:
     pass
+import copy
+import utils
 import argparse
+import wandb
 from configs.datasets_config import get_dataset_info
 from os.path import join
 from qm9 import dataset, analyze
 from qm9.models import get_optim, get_model, get_autoencoder, get_latent_diffusion
+from equivariant_diffusion import en_diffusion
 from equivariant_diffusion.utils import assert_correctly_masked
+from equivariant_diffusion import utils as flow_utils
 import torch
+import time
 import pickle
+from qm9.utils import prepare_context, compute_mean_mad
+from train_test import train_epoch, test, analyze_and_save
+from evo import InitPop
+from copy import deepcopy
+import random
+from qm9.visualizer import plot_data3d,save_xyz_file,load_molecule_xyz
+from equivariant_diffusion import utils as diffusion_utils
 from contextlib import contextmanager
+import matplotlib.pyplot as plt
 import utils
 import sys
 import csv
+import os
+import itertools
 import numpy as np
 import os
 import evis
 # GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
+from demo_runtime.legacy import env_bool
+use_EDM = env_bool("DEMO_USE_EDM", default=True)
 
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='qm9_latent2')
@@ -135,7 +151,8 @@ parser.add_argument('--normalization_factor', type=float, default=1,
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
 args = parser.parse_args()
-
+if use_EDM:
+    args.resume = 'tfgmodels/EDMsecond'
 
 dataset_info = get_dataset_info(args.dataset, args.remove_h)
 
@@ -148,8 +165,7 @@ args.wandb_usr = utils.get_wandb_username(args.wandb_usr)
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 device = 'cuda:0'
 dtype = torch.float32
-if use_EDM:
-    args.resume = 'tfgmodels/EDMsecond'
+
 if args.resume is not None:
     exp_name = args.exp_name + '_resume'
     start_epoch = args.start_epoch
@@ -187,6 +203,7 @@ if use_EDM:
 else:
     model, nodes_dist, prop_dist = get_latent_diffusion(args, device, dataset_info, None)
 model = model.to(device)
+optim = get_optim(args, model)
 # print(model)
 
 gradnorm_queue = utils.Queue()
@@ -214,7 +231,6 @@ def suppress_print():
 
 
 def main():
-
     # --- 1. 配置与初始化 ---
     evo.seed_everything(42)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -228,12 +244,12 @@ def main():
         samplevalues = pickle.load(f)
     args.xtb = False
     # dataloaders, _ = dataset.retrieve_dataloaders(args)
-    MOEA_NAME = "TopN"
+    MOEA_NAME = "EGD_woMT"
 
     if use_EDM:
-        save_path = f'./DEMO/{MOEA_NAME}_EDM_SSOP/'
+        save_path = f'./DEMO/{MOEA_NAME}_EDM_MSOP/'
     else:
-        save_path = f'./DEMO/{MOEA_NAME}_GEOLDM_SSOP/'
+        save_path = f'./DEMO/{MOEA_NAME}_GEOLDM_MSOP/'
 
     viz = evis.EvoVisualizer(save_dir=save_path, dataset_info=dataset_info)
 
@@ -246,10 +262,9 @@ def main():
     prop = ['alpha', 'gap', 'homo', 'lumo', 'mu', 'Cv']
     comb1 = [['alpha'], ['gap'], ['homo'], ['lumo'], ['mu'], ['Cv']]
     comb2 = [('Cv', 'mu'), ('gap', 'mu'), ('alpha', 'mu'), ('homo', 'lumo'), ('lumo', 'mu'), ('lumo', 'gap'), ('homo', 'gap')]
-    comb3 = [['Cv']]
 
     # combinations = list(itertools.combinations(prop, 1))  # 这里改 1 或 3 都行
-    combinations = comb1
+    combinations = comb2
     NPops_numbers = [32]
     args.xtb=None
 
@@ -257,8 +272,7 @@ def main():
     train_data = dataloaders['train'].dataset.data
     max_n_nodes, min_n_nodes = 29, 5
     tracker = evis.EvoTracker()
-
-    numberoforun = 10
+    numberoforun = 20
 
     for Obj in combinations:
         print(f"\n>>> Start: {Obj}")
@@ -290,35 +304,44 @@ def main():
                                                               ObjValue)
 
                 current_noise = scheduler.update(Off=Pop, Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj, calHV=False)
-                tracker.update(Pop, Obj, MMAE=np.mean([item['MAE'] for item in Pop], axis=0), AddNoise=current_noise, score=scheduler.score)
-                totalgen = 10
+                tracker.update(Pop, Obj, MAE1=np.mean([item['MAE'][0] for item in Pop]), MAE2=np.mean([item['MAE'][1] for item in Pop]), AddNoise=current_noise, score=scheduler.score)
+                totalgen = 20
                 # 3. 进化迭代
                 for gen in range(totalgen):
-                    Off = evo.InitPop(NPops, nodes_dist, args, device, model, dataset_info, prop_dist, False, min_n_nodes, preds, max_n_nodes,
-                                  True)
+                    ParentSize = int(NPops)
+                    Parent = evo.k_tournament_selection(Pop, 2, ParentSize)
+                    for i in range(len(Parent)): Parent[i]['AddT'] = current_noise
+                    Parent = evo.add_noise(model, Parent, device)
+
+                    Off2 = evo.valOff(Parent, min_n_nodes, max_n_nodes, device, max_n_nodes, nodes_dist)
+                    Off = evo.denoise_same_level(Off2, model, max_n_nodes, device, dataset_info, preds, True, iter_num=f"{run_idx}-{gen}")
                     Pop = evo.Get_Fitness_multi_dis_MAE_normalize(Off + Pop, dataset_info, device, preds, max_n_nodes, Obj, None,
                                                                   0, ObjValue)
                     Pop = evo.EnvironmentalSelectionSingle(Pop, NPops)
 
-                    current_noise = scheduler.update(Off=Off, Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj, calHV=False)
-                    current_noise = 1000
-                    scheduler.curr_noise=1000
-                    tracker.update(Pop, Obj, MMAE=np.mean([item['MAE'] for item in Pop], axis=0), AddNoise=current_noise, score=scheduler.score)
-                    print(f"  {MOEA_NAME} {use_EDM} | Gen {gen + 1} |  Noise: {current_noise} | MMAE: {tracker.metrics['MMAE'][-1]:.4f}   ")
+                    current_noise = scheduler.update(Off=Off[0:ParentSize-1], Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj, calHV=False)
+                    tracker.update(Pop, Obj, MAE1=np.mean([item['MAE'][0] for item in Pop]), MAE2=np.mean([item['MAE'][1] for item in Pop]), AddNoise=current_noise, score=scheduler.score)
+                    print(f"  {MOEA_NAME} {use_EDM} | Gen {gen + 1} |  Noise: {current_noise} | MAE1: {tracker.metrics['MAE1'][-1]:.4f} | MAE2: {tracker.metrics['MAE2'][-1]:.4f}  ")
 
                 # 4. 重点：单次运行结束后，一键绘制演化追踪图 (自适应 1D/2D/3D)
                 viz.plot_matching_trace(tracker, Obj, ref_point=ObjValue, suffix=f"N{NPops}_Run{run_idx}", interval=2)
                 multi_tracker.add('AvgAddT', tracker.metrics['AddNoise'])  # 添加到统计器
                 multi_tracker.add('Score', tracker.metrics['score'])  # 添加到统计器
-                multi_tracker.add('MMAE', tracker.metrics['MMAE'])  # 添加到统计器
+                multi_tracker.add('MAE1', tracker.metrics['MAE1'])
+                multi_tracker.add('MAE2', tracker.metrics['MAE2'])
 
 
             # 5. 20 轮跑完后，绘制均值收敛汇总图
             # print(f"  正在计算并保存 {Obj} 的统计结果...")
-            mean_mmae, std_mmae = multi_tracker.get_aggregated_stats('MMAE')
-            viz.plot_mean_curve_with_std(mean_mmae, std_mmae, "MMAE",
-                                         f"Mean MMAE over {numberoforun} Runs on {Obj}",
-                                         f"MOP_MMAE_{Obj}_{MOEA_NAME}")
+            mean_mae1, std_mae1 = multi_tracker.get_aggregated_stats('MAE1')
+            viz.plot_mean_curve_with_std(mean_mae1, std_mae1, "MAE1",
+                                         f"Mean MAE1 over {numberoforun} Runs on {Obj}",
+                                         f"MOP_MAE1_{Obj}_{MOEA_NAME}")
+
+            mean_mae2, std_mae2 = multi_tracker.get_aggregated_stats('MAE2')
+            viz.plot_mean_curve_with_std(mean_mae2, std_mae2, "MAE2",
+                                         f"Mean MAE2 over {numberoforun} Runs on {Obj}",
+                                         f"MOP_MAE2_{Obj}_{MOEA_NAME}")
 
             mean_sc, std_sc = multi_tracker.get_aggregated_stats('Score')
             viz.plot_mean_curve_with_std(mean_sc, std_sc, "Score",
@@ -335,14 +358,15 @@ def main():
                 writer = csv.writer(f)
                 # 更新表头
                 writer.writerow(
-                    ['Gen', 'Mean_HV', 'Std_HV', 'Mean_AN', 'Std_AN', 'Mean_Score', 'Std_Score'])
+                    ['Gen', 'MAE1', 'STD1', 'MAE2', 'STD2', 'MEANAN', 'STDAN', 'MEANSC', 'STDSC'])
 
                 # 确保长度一致 (以防万一)
-                length = min(len(mean_mmae), len(mean_an))
+                length = min(len(mean_mae1), len(mean_an))
                 for i in range(length):
                     writer.writerow([
                         i,
-                        mean_mmae[i], std_mmae[i],
+                        mean_mae1[i], std_mae1[i],
+                        mean_mae2[i], std_mae2[i],
                         mean_an[i], std_an[i],
                         mean_sc[i], std_sc[i]
                     ])

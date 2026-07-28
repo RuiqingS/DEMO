@@ -4,19 +4,45 @@
   "seeds": [42],
   "tasks": [
     {
-      "id": "single_property_egd",
+      "id": "single_property_egd_geoldm",
       "type": "single_objective",
       "problem": "qm9_single_property",
-      "method": "EGD",
+      "method": "EGD+GeoLDM",
       "entrypoint": "task2_single_target_matching_MAE.py",
+      "backbone": "GeoLDM",
+      "environment": {"DEMO_USE_EDM": "0"},
+      "checkpoint_paths": ["outputs/geoldm_qm9_second_half/generative_model_ema.npy"]
+    },
+    {
+      "id": "single_property_egd_edm",
+      "type": "single_objective",
+      "problem": "qm9_single_property",
+      "method": "EGD+EDM",
+      "entrypoint": "task2_single_target_matching_MAE.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
-      "id": "single_property_topn",
+      "id": "single_property_topn_geoldm",
       "type": "single_objective",
       "problem": "qm9_single_property",
-      "method": "TopN",
+      "method": "GeoLDM+TopN",
       "entrypoint": "task2_single_target_matching_MAE_topn.py",
+      "backbone": "GeoLDM",
+      "environment": {"DEMO_USE_EDM": "0"},
+      "duplicate_note": "Table 1 SR and SE are two checkpoints from this same sampling trace, not two launches.",
+      "checkpoint_paths": ["outputs/geoldm_qm9_second_half/generative_model_ema.npy"]
+    },
+    {
+      "id": "single_property_topn_edm",
+      "type": "single_objective",
+      "problem": "qm9_single_property",
+      "method": "EDM+TopN",
+      "entrypoint": "task2_single_target_matching_MAE_topn.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "duplicate_note": "Table 1 SR and SE are two checkpoints from this same sampling trace, not two launches.",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
@@ -25,6 +51,30 @@
       "problem": "qm9_multi_property_target",
       "method": "EGD",
       "entrypoint": "task2_target_matching_MAE.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "multi_property_target_egd_wo_co",
+      "type": "single_objective_ablation",
+      "problem": "qm9_multi_property_target",
+      "method": "EGD w/o CO",
+      "entrypoint": "task2_target_matching_MAE_woCO.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "reference_source": "../GeoLDM/task2_target_matching_MAE_woCO.py",
+      "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
+    },
+    {
+      "id": "multi_property_target_egd_wo_mt",
+      "type": "single_objective_ablation",
+      "problem": "qm9_multi_property_target",
+      "method": "EGD w/o MT",
+      "entrypoint": "task2_target_matching_MAE_woMT.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "reference_source": "../GeoLDM/task2_target_matching_MAE_woMT.py",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     },
     {
@@ -33,11 +83,16 @@
       "problem": "qm9_multi_property_target",
       "method": "TopN",
       "entrypoint": "task2_target_matching_MAE_topn.py",
+      "backbone": "EDM",
+      "environment": {"DEMO_USE_EDM": "1"},
+      "duplicate_note": "Table 2 SR and SE are extracted from one Top-N sampling trace, not two launches.",
       "checkpoint_paths": ["tfgmodels/EDMsecond/generative_model_ema.npy"]
     }
   ],
   "summary_metrics": [
     {"name": "MMAE", "direction": "min"},
+    {"name": "MAE1", "direction": "min"},
+    {"name": "MAE2", "direction": "min"},
     {"name": "score", "direction": "max"}
   ]
 }

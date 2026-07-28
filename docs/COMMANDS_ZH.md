@@ -48,6 +48,9 @@ DEMO_CONDA_ENV=my_env bash scripts/run_suite.sh \
 
 所有套件配置位于 `configs/suites/`。
 
+论文表 1–5、补齐消融、重复命令和 QM9-CMOP 的逐项对应关系见
+[`PAPER_EXPERIMENT_COMMANDS_ZH.md`](PAPER_EXPERIMENT_COMMANDS_ZH.md)。
+
 ## 3. 运行前检查
 
 先验证命令展开和 GPU 分配，不加载模型、不启动正式实验：
@@ -85,6 +88,8 @@ DEMO_TEST_PLOTTING=1 python -m unittest discover -s tests -v
 bash -n scripts/_activate_env.sh
 bash -n scripts/run_suite.sh
 bash -n scripts/run_all_revision.sh
+bash -n scripts/run_paper_tables.sh
+bash -n scripts/run_reviewer_additions.sh
 bash -n scripts/plot_suite.sh
 bash -n scripts/summarize_suite.sh
 ```
@@ -121,8 +126,29 @@ bash scripts/run_suite.sh --suite docking_mop --gpus 0,1 --skip-completed
 | `--max-parallel-per-gpu N` | 每张 GPU 同时运行的进程数，默认 `1` |
 | `--results-root PATH` | 结果根目录，默认 `results` |
 | `--dry-run` | 只展示任务和 GPU 分配，不运行模型 |
+| `--task TASK_ID` | 只运行指定任务；可重复传入以选择多个任务 |
+| `--list-tasks` | 列出任务 ID、论文方法、骨干和重复说明后退出 |
 | `--plot` | 实验结束后从 JSONL 生成图 |
 | `--summarize` | 实验结束后生成汇总表 |
+
+先查看一个套件中的任务：
+
+```bash
+bash scripts/run_suite.sh --suite qm9_mop --list-tasks
+```
+
+只运行表 3 的两个消融：
+
+```bash
+bash scripts/run_suite.sh \
+  --suite qm9_mop \
+  --task qm9_mop_saes_wo_co \
+  --task qm9_mop_saes_wo_mt \
+  --gpus 0,1 \
+  --skip-completed \
+  --plot \
+  --summarize
+```
 
 单卡运行：
 
@@ -158,7 +184,19 @@ bash scripts/run_suite.sh \
 
 ## 5. 启动全部修改实验
 
-按顺序运行五类实验，并在每类结束后绘图和汇总：
+只运行论文表 1–5 的本地实验：
+
+```bash
+bash scripts/run_paper_tables.sh --gpus 0,1,2,3
+```
+
+只运行本次已实现的审稿新增 QM9-CMOP：
+
+```bash
+bash scripts/run_reviewer_additions.sh --gpus 0,1,2,3
+```
+
+按顺序运行论文表格和 QM9-CMOP，并在每类结束后绘图和汇总：
 
 ```bash
 bash scripts/run_all_revision.sh --gpus 0,1,2,3

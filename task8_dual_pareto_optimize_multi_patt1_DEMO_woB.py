@@ -1,8 +1,5 @@
-from demo_runtime.legacy import env_bool
-use_EDM = env_bool("DEMO_USE_EDM", default=False)
 # Rdkit import should be first, do not move it
 import evo
-
 try:
     from rdkit import Chem
 except ModuleNotFoundError:
@@ -15,7 +12,6 @@ from qm9.models import get_optim, get_model, get_autoencoder, get_latent_diffusi
 from equivariant_diffusion.utils import assert_correctly_masked
 import torch
 import pickle
-from copy import deepcopy
 import random
 from qm9.visualizer import plot_data3d,save_xyz_file,load_molecule_xyz, plot_data3d_highlight, plot_data3d_highlight_triview
 import utils
@@ -24,10 +20,13 @@ import csv
 import os
 import evis
 from rdkit import rdBase
+from copy import deepcopy
 from MOEA import DEMO
 
 rdBase.DisableLog('rdApp.warning')
 rdBase.DisableLog('rdApp.error')
+from demo_runtime.legacy import env_bool
+use_EDM = env_bool("DEMO_USE_EDM", default=True)
 # GPU visibility is controlled by scripts/run_suite.sh before torch is imported.
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='qm9_latent2')
@@ -196,6 +195,7 @@ else:
     model, nodes_dist, prop_dist = get_latent_diffusion(args, device, dataset_info, None)
 
 model = model.to(device)
+optim = get_optim(args, model)
 # print(model)
 
 gradnorm_queue = utils.Queue()
@@ -239,14 +239,14 @@ def main():
     total_runs = 20  # 每个目标组合独立运行的次数 (seed 1 to 20)
     num_workers = 9
     USE_HV_TRIGGER = False
-    MOEA_NAME = 'HARD_SPEA2CDP2'
+    MOEA_NAME = 'HARD_DEMO_woB'
 
     # 属性组合
     prop = ['alpha', 'gap', 'homo', 'lumo', 'mu', 'Cv']
     # combinations = list(itertools.combinations(prop, 2))
 
     comb2 = [('alpha', 'gap'), ('gap', 'homo'), ('homo', 'lumo'), ('lumo', 'mu'), ('mu', 'Cv'), ('Cv', 'alpha')]
-    comb3 = [('alpha', 'homo', 'mu'), ('gap', 'lumo', 'Cv'), ('alpha', 'lumo', 'Cv'), ('gap', 'homo', 'mu')]
+    comb3 = [ ('alpha', 'homo', 'mu'), ('gap', 'lumo', 'Cv'), ('alpha', 'lumo', 'Cv'), ('gap', 'homo', 'mu')]
     combinations = comb3 + comb2
 
     print(f"Total tasks: {len(combinations)}")
@@ -259,13 +259,14 @@ def main():
         base_save_root = f'./DEMO/{MOEA_NAME}_CMOP_EDM_seed0/'
     else:
         base_save_root = f'./DEMO/{MOEA_NAME}_CMOP_GEOLDM_seed0/'
+
     seed = 10
     # ==========================================
     # 2. 属性组合大循环 (Outer Loop)
     # ==========================================
     for Obj in combinations:
-        # Obj = ('mu','Cv')
         seed += 1
+        # Obj = ('mu','Cv')
         obj_str = "_".join(Obj)
         print(f"\nStarting Task: {Obj}")
 
@@ -309,54 +310,153 @@ def main():
                 viz.save_molecule_3d(pc, f"pattcrop_ref_{i}", 0)
 
             # --- D. 初始化种群 ---
-            Pop = evo.InitPop(NPops, nodes_dist, args, device, model, dataset_info, prop_dist,
-                              False, min_n_nodes, preds, max_n_nodes, True)
-            Pop = evo.Get_Fitness_Pareto(Pop, dataset_info, device, preds, max_n_nodes, Obj, pattcrops, tolerance, num_workers=num_workers)
+            print(f"\n[Run {run_idx}] Initializing Main and Diversity Populations...")
+
+            # 生成两倍大小的初始池
+            Initial_Pool = evo.InitPop(NPops, nodes_dist, args, device, model, dataset_info, prop_dist,
+                                       False, min_n_nodes, preds, max_n_nodes, True)
+
+            # 初始评价
+            Initial_Pool = evo.Get_Fitness_Pareto(Initial_Pool, dataset_info, device, preds, max_n_nodes, Obj,
+                                                  pattcrops, tolerance, num_workers=num_workers)
+
+            # PopMain (主种群): 使用标准的 SPEA2-CDP
+
+            PopMain = DEMO.EnvironmentalSelectionMain_Diverse(deepcopy(Initial_Pool), NPops, Obj, dataset_info)
+            Pop_A = deepcopy(PopMain)
+            Pop_B = []
+            Pop_C = DEMO.EnvironmentalSelection_C_Archive(deepcopy(Initial_Pool), NPops, Obj, dataset_info)
+            # PopDiv = DEMO.EnvironmentalSelectionDiv(Initial_Pool, PopMain, NPops, dataset_info)
 
             scheduler = evo.AdaptiveNoiseScheduler(dataset_info=dataset_info, initial_noise=1000, min_noise=0,
-                                                   max_noise=1000, step_size=20,
-                                                   drop_factor=0.5, use_hv_trigger=USE_HV_TRIGGER)
-            current_noise = scheduler.update(Off=Pop, Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj)
-            fr_init, init_ac = evo.get_fr_avgcon(Pop)
-            unique_valid_rate = evo.get_population_duplicate_rate(Pop, dataset_info, NPops)
-            UUVR = evo.get_population_duplicate_rate(Pop, dataset_info, NPops, usecon=False)
-            tracker.update(Pop, Obj, FeasibleRate=fr_init, AvgConstraint=init_ac, AddNoise=current_noise, Score=scheduler.score, UVR=unique_valid_rate, UUVR=UUVR)
+                                                   max_noise=1000, step_size=20, drop_factor=0.5,
+                                                   use_hv_trigger=USE_HV_TRIGGER)
+            current_noise = scheduler.update(Off=Pop_A, Pop=Pop_A, tracker=tracker, viz=viz, obj_names=Obj)
+
+            fr_init, init_ac = evo.get_fr_avgcon(Pop_A)
+            unique_valid_rate = evo.get_population_duplicate_rate(Pop_C, dataset_info, NPops)
+            UUVR = evo.get_population_duplicate_rate(Pop_C, dataset_info, NPops, usecon=False)
+            tracker.update(Pop_A, Obj, FeasibleRate=fr_init, AvgConstraint=init_ac, AddNoise=current_noise,
+                           Score=scheduler.score, UVR=unique_valid_rate, UUVR=UUVR)
 
             # ==========================================
             # 4. 进化迭代循环 (Generation Loop)
             # ==========================================
             for gen in range(iters):
 
-                # 4.1 选择与加噪
-                Parent = evo.k_tournament_selection(Pop, 2, int(NPops / 2))
-                for i in range(len(Parent)):
-                    Parent[i]['AddT'] = current_noise
-                    Parent[i]['EvaluatedSC'] = False
-                Parent = evo.add_noise(model, Parent, device)
+                # ==================================
+                # 车间 A：底盘自由探索 + 强制组装
+                # ==================================
+                Parent_A = evo.k_tournament_selection(Pop_A, 2, int(NPops / 2))
+                for p in Parent_A: p['AddT'] = current_noise
+                Parent_A_Noised = evo.add_noise(model, Parent_A, device)
 
-                # 生成子代
-                Off1 = []
-                # 4.3 种群内交叉
-                Off2 = evo.valOff(Parent, min_n_nodes, max_n_nodes, device, max_n_nodes, nodes_dist)
+                # 【新增】：将 A 的父代一分为二
+                half_A = len(Parent_A_Noised) // 2
+                Parent_A_Internal = Parent_A_Noised[:half_A]
+                Parent_A_Forced = Parent_A_Noised[half_A:]
 
-                # 4.4 去噪与评估
-                lencross = len(Off1 + Off2)
-                Off = evo.denoise_same_level(Off1 + Off2 + Parent, model, max_n_nodes, device, dataset_info, preds,True)
-                Pop = evo.Get_Fitness_Pareto(Off + Pop, dataset_info, device, preds, max_n_nodes, Obj, pattcrops, tolerance, num_workers=num_workers)
+                # 动作 1：A 种群内部基因交流 (维持野生底盘多样性)
+                Off_A_Int = []
+                if len(Parent_A_Internal) >= 2:
+                    Off_A_Int = evo.valOff(Parent_A_Internal, min_n_nodes, max_n_nodes, device, max_n_nodes, nodes_dist)
 
-                # 4.5 环境选择
-                Pop = evo.EnvironmentalSelectionCon(Pop, NPops, Obj)
+                # 动作 2：A 与目标片段强制拼接 (组装)
+                pattcrops_noised = []
+                for pc in pattcrops:
+                    pc_tmp = deepcopy(pc)
+                    pc_tmp['AddT'] = current_noise
+                    pattcrops_noised.append(pc_tmp)
+                pattcrops_noised = evo.add_noise(model, pattcrops_noised, device)
 
-                current_noise = scheduler.update(Off=Off[0:lencross-1], Pop=Pop, tracker=tracker, viz=viz, obj_names=Obj)
-                fr, avg_con = evo.get_fr_avgcon(Pop)
-                unique_valid_rate = evo.get_population_duplicate_rate(Pop, dataset_info, NPops)
-                UUVR = evo.get_population_duplicate_rate(Pop, dataset_info, NPops, usecon=False)
-                tracker.update(Pop, Obj, FeasibleRate=fr, AvgConstraint=avg_con, AddNoise=current_noise, Score=scheduler.score, UVR=unique_valid_rate, UUVR=UUVR)
-                print(f"  {MOEA_NAME} {use_EDM} {len(Off)} | Gen {gen+1} | FR: {fr:.2f} | Noise: {current_noise} | HV: {tracker.metrics['HV'][-1]:.4f} | AvgConstraint: {avg_con:.4f} | UVR: {unique_valid_rate:.1%} ")
+                Off_A_Forced = []
+                import random
+                for p_a in Parent_A_Forced:
+                    target_frag = random.choice(pattcrops_noised)
+                    sub_off = evo.valOff_Patt(target_frag, [p_a], min_n_nodes, max_n_nodes, device, max_n_nodes,
+                                              nodes_dist)
+                    Off_A_Forced.extend(sub_off)
+
+                # 汇总 A 产生的子代
+                Off_A_Total = Off_A_Int + Off_A_Forced
+
+                # ==================================
+                # 车间 B：纯构象打磨 (仅变异，绝不交叉)
+                # ==================================
+                total_mut_budget = int(NPops / 2)
+                Parent_B = []
+
+                # 1. 动态名额分配策略
+                if len(Pop_C) >= total_mut_budget:
+                    n_C = total_mut_budget
+                else:
+                    n_C = len(Pop_C)
+                    Parent_B.extend(Parent_A[0:(total_mut_budget - n_C)])
+
+
+                # 2. 独立锦标赛选择 (分离的基因池)
+                Parent_B.extend(evo.k_tournament_selection(Pop_C, 1, n_C))
+
+
+                # 3. 统一加噪 (构象松弛)
+                for p in Parent_B:
+                    p['AddT'] = current_noise
+                    p['EvaluatedSC'] = False  # 需要重新评估片段
+
+                Parent_B_Noised = evo.add_noise(model, Parent_B, device)
+
+                # ==================================
+                # 统一去噪车间 (GPU Batch)
+                # ==================================
+                # 放入去噪器的包含：A 的内部子代、A 的拼接子代、B 的变异父代
+                Candidates_To_Denoise = Off_A_Total + Parent_B_Noised
+
+                Off_Denoised = evo.denoise_same_level(Candidates_To_Denoise, model, max_n_nodes, device, dataset_info,
+                                                      preds, True)
+
+                # 统一评价
+                Off_Evaluated = DEMO.Get_Fitness_Pareto_Main(Off_Denoised, dataset_info, device, preds, max_n_nodes, Obj,
+                                                            pattcrops, tolerance=0)
+
+                # ==================================
+                # 货品分发与各车间环境选择
+                # ==================================
+                # 把 A和B 的祖本，以及新产出的所有商品，丢进中央奖池
+                Central_Pool = Pop_A + Pop_B + Off_Evaluated
+
+                # 1. 完美品进入 C 库 (Archive)
+                Pop_C = DEMO.EnvironmentalSelection_C_Archive(Central_Pool + Pop_C, NPops, Obj, dataset_info)
+
+                # 2. 半成品进入 B 车间 (严格要求不可行解，向完美拼接努力)
+                # 若 Central_Pool 中全都是完美品，函数内部会容错处理
+                Pop_B = []
+
+                # 3. 游离骨架进入 A 车间 (排斥拼接，向未知的化学空间深处探索)
+                Pop_A = DEMO.EnvironmentalSelection_A(Central_Pool, NPops, Obj, dataset_info)
+
+                # ==================================
+                # 调度与日志
+                # ==================================
+                # 调度器监控进度：B 车间的平均约束最能反映组装难度，如果 B 卡住了，就需要调整噪声
+                monitor_pop = Pop_B if len(Pop_B) > 0 else Pop_A
+                current_noise = scheduler.update(Off=Off_Denoised[0:int(NPops / 2)-1], Pop=Pop_C, tracker=tracker, viz=viz,
+                                                 obj_names=Obj)
+
+                fr = len(Pop_C) / NPops if len(Pop_C) > 0 else 0.0
+                _, avg_con = evo.get_fr_avgcon(Pop_B)
+                unique_valid_rate = evo.get_population_duplicate_rate(Pop_C, dataset_info, NPops)
+                UUVR = evo.get_population_duplicate_rate(monitor_pop, dataset_info, NPops, usecon=False)
+                tracker.update(monitor_pop, Obj, FeasibleRate=fr, AvgConstraint=avg_con, AddNoise=current_noise,
+                               Score=scheduler.score, UVR=unique_valid_rate, UUVR=UUVR)
+
+                print(
+                    f"  [Assembly-Line] Gen {gen + 1:03d} {len(Off_Denoised)} {MOEA_NAME}|FR(C): {fr} | AC(B): {avg_con:.2f} | Noise: {current_noise} | HV(C): {tracker.metrics['HV'][-1]:.4f} | UVR: {unique_valid_rate:.4f}")
+
 
             # ==========================================
             # 5. 单次运行结果导出 (到 run_x 文件夹)
             # ==========================================
+            Pop = Pop_C
             print(f"    >>> Saving results for Run {run_idx}...")
 
             viz.save_final_feasible_objs(Pop, Obj, f"Final_Feasible.csv")
@@ -422,7 +522,7 @@ def main():
 
             viz.visualize_population(Pop, Obj)
 
-            del Pop, Parent, Off, Off1, Off2
+            del Pop
             torch.cuda.empty_cache()
 
         print(f"\n>>> Calculating Aggregate Stats for {Obj}...")
@@ -486,6 +586,8 @@ def main():
                 ])
 
     print("\nALL EXPERIMENTS COMPLETED")
+
+
 
 
 
