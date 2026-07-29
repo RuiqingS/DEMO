@@ -4,12 +4,13 @@ from qm9 import dataset,analyze
 from qm9.property_prediction.models_property import EGNN
 from qm9.property_prediction import prop_utils
 import copy
+import itertools
 import math
 from qm9.visualizer import plot_data3d,save_xyz_file,load_molecule_xyz
 from scipy.spatial.distance import pdist, squareform
 #matplotlib.use('TkAgg')
 from qm9.bond_analyze import get_bond_order
-from rdkit.Chem import rdMolDescriptors, Lipinski, Crippen, rdFMCS
+from rdkit.Chem import rdMolDescriptors, Lipinski, Crippen
 import torch.nn.functional as F
 import concurrent.futures
 from collections import deque
@@ -43,8 +44,6 @@ from rdkit import RDConfig
 sys.path.append(os.path.join(RDConfig.RDContribDir, 'SA_Score'))
 rdBase.DisableLog('rdApp.warning')
 rdBase.DisableLog('rdApp.error')
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 #这个是评价器的mae和mad
 property_mean = {'alpha' :torch.tensor(75.3734),'gap' :torch.tensor(6.8632),'homo' :torch.tensor(-6.5386),'lumo' :torch.tensor(0.3246),'mu' :torch.tensor(2.6751),'Cv' :torch.tensor(-22.1666)}
 property_mad = {'alpha' : torch.tensor(6.2728),'gap' :torch.tensor(1.0619),'homo' :torch.tensor(0.4396),'lumo' :torch.tensor(1.0338),'mu' :torch.tensor(1.1757),'Cv' :torch.tensor(4.8885)}
@@ -166,73 +165,286 @@ def build_mol_from_coords_and_types(coords, atom_types):
         return mol.GetMol()
 
 
+def _is_connected_fragment_subset(adj_matrix, nodes):
+    """Return whether ``nodes`` induce one connected fragment subgraph."""
+    if len(nodes) <= 1:
+        return True
+    allowed = set(nodes)
+    visited = {nodes[0]}
+    stack = [nodes[0]]
+    while stack:
+        current = stack.pop()
+        for neighbor in np.where(adj_matrix[current] != 0)[0]:
+            neighbor = int(neighbor)
+            if neighbor in allowed and neighbor not in visited:
+                visited.add(neighbor)
+                stack.append(neighbor)
+    return len(visited) == len(allowed)
+
+
+def _enumerate_subgraph_embeddings(
+        frag_adj,
+        frag_types,
+        target_adj,
+        target_types,
+        fragment_nodes,
+        blacklist=None,
+):
+    """Enumerate unique target atom sets embedding an induced fragment subset.
+
+    The embedding is a non-induced subgraph monomorphism: every fragment bond
+    and bond order must be present in the target, while extra target bonds are
+    allowed.  Fragment traversal order is chosen from graph selectivity rather
+    than atom indices, making the result invariant to atom renumbering.
+    """
+    fragment_nodes = tuple(int(node) for node in fragment_nodes)
+    blocked = set() if blacklist is None else {int(node) for node in blacklist}
+    if not fragment_nodes:
+        return []
+
+    selected = set(fragment_nodes)
+    fragment_degrees = {
+        node: sum(
+            1
+            for neighbor in selected
+            if neighbor != node and frag_adj[node, neighbor] != 0
+        )
+        for node in fragment_nodes
+    }
+    target_degrees = np.count_nonzero(target_adj, axis=1)
+    candidates = {}
+    for fragment_node in fragment_nodes:
+        candidates[fragment_node] = [
+            target_node
+            for target_node, target_type in enumerate(target_types)
+            if target_node not in blocked
+            and target_type == frag_types[fragment_node]
+            and target_degrees[target_node] >= fragment_degrees[fragment_node]
+        ]
+        if not candidates[fragment_node]:
+            return []
+
+    order = sorted(
+        fragment_nodes,
+        key=lambda node: (
+            len(candidates[node]),
+            -fragment_degrees[node],
+            frag_types[node],
+            node,
+        ),
+    )
+    mapping = {}
+    used_targets = set()
+    embeddings = []
+    seen_target_sets = set()
+
+    def has_forward_candidate(fragment_node, target_node):
+        for fragment_neighbor in selected:
+            required_bond = frag_adj[fragment_node, fragment_neighbor]
+            if (
+                fragment_neighbor in mapping
+                or required_bond == 0
+            ):
+                continue
+            if not any(
+                candidate not in used_targets
+                and candidate != target_node
+                and target_types[candidate] == frag_types[fragment_neighbor]
+                and target_adj[target_node, candidate] == required_bond
+                for candidate in candidates[fragment_neighbor]
+            ):
+                return False
+        return True
+
+    def backtrack(position):
+        if position == len(order):
+            target_set = frozenset(mapping.values())
+            if target_set not in seen_target_sets:
+                seen_target_sets.add(target_set)
+                embeddings.append(mapping.copy())
+            return
+
+        fragment_node = order[position]
+        for target_node in candidates[fragment_node]:
+            if target_node in used_targets:
+                continue
+            feasible = True
+            for mapped_fragment, mapped_target in mapping.items():
+                required_bond = frag_adj[fragment_node, mapped_fragment]
+                if (
+                    required_bond != 0
+                    and target_adj[target_node, mapped_target] != required_bond
+                ):
+                    feasible = False
+                    break
+            if not feasible or not has_forward_candidate(fragment_node, target_node):
+                continue
+
+            mapping[fragment_node] = target_node
+            used_targets.add(target_node)
+            backtrack(position + 1)
+            used_targets.remove(target_node)
+            del mapping[fragment_node]
+
+    backtrack(0)
+    return embeddings
+
+
+def _full_match_options(
+        frag_adj,
+        frag_types,
+        target_adj,
+        target_types,
+        blacklist=None,
+):
+    """Return all unique complete embeddings as ``(size, atoms, mapping)``."""
+    fragment_nodes = tuple(range(len(frag_types)))
+    embeddings = _enumerate_subgraph_embeddings(
+        frag_adj,
+        frag_types,
+        target_adj,
+        target_types,
+        fragment_nodes,
+        blacklist=blacklist,
+    )
+    return [
+        (len(fragment_nodes), frozenset(mapping.values()), mapping)
+        for mapping in embeddings
+    ]
+
+
+def _connected_match_options(
+        frag_adj,
+        frag_types,
+        target_adj,
+        target_types,
+        blacklist=None,
+        full_options=None,
+):
+    """Enumerate permutation-invariant connected common-subgraph options."""
+    fragment_size = len(frag_types)
+    if fragment_size == 0:
+        return []
+
+    options_by_target_set = {}
+    if full_options is None:
+        full_options = _full_match_options(
+            frag_adj,
+            frag_types,
+            target_adj,
+            target_types,
+            blacklist=blacklist,
+        )
+    for option in full_options:
+        options_by_target_set[option[1]] = option
+
+    fragment_indices = tuple(range(fragment_size))
+    for size in range(fragment_size - 1, 0, -1):
+        for subset in itertools.combinations(fragment_indices, size):
+            if not _is_connected_fragment_subset(frag_adj, subset):
+                continue
+            for mapping in _enumerate_subgraph_embeddings(
+                frag_adj,
+                frag_types,
+                target_adj,
+                target_types,
+                subset,
+                blacklist=blacklist,
+            ):
+                target_set = frozenset(mapping.values())
+                previous = options_by_target_set.get(target_set)
+                if previous is None or size > previous[0]:
+                    options_by_target_set[target_set] = (
+                        size,
+                        target_set,
+                        mapping,
+                    )
+
+    return sorted(
+        options_by_target_set.values(),
+        key=lambda option: (-option[0], tuple(sorted(option[1]))),
+    )
+
+
+def _choose_disjoint_options(option_lists, fragment_sizes):
+    """Choose one non-overlapping option per pattern with maximum coverage."""
+    if not option_lists or any(not options for options in option_lists):
+        return None
+
+    pattern_order = sorted(
+        range(len(option_lists)),
+        key=lambda index: (len(option_lists[index]), index),
+    )
+    max_quality = [
+        max(option[0] for option in option_lists[index]) / fragment_sizes[index]
+        for index in pattern_order
+    ]
+    remaining_quality = [0.0] * (len(pattern_order) + 1)
+    for position in range(len(pattern_order) - 1, -1, -1):
+        remaining_quality[position] = (
+            remaining_quality[position + 1] + max_quality[position]
+        )
+
+    choices = [None] * len(option_lists)
+    best_choices = None
+    best_quality = -1.0
+
+    def search(position, used_atoms, quality):
+        nonlocal best_choices, best_quality
+        # Once the theoretical upper bound is reached, no alternative branch
+        # can improve the assignment.  This is especially important for
+        # symmetric molecules, which may have many equivalent embeddings.
+        if best_quality >= remaining_quality[0] - 1e-12:
+            return
+        if quality + remaining_quality[position] < best_quality - 1e-12:
+            return
+        if position == len(pattern_order):
+            if quality > best_quality + 1e-12:
+                best_quality = quality
+                best_choices = list(choices)
+            return
+
+        pattern_index = pattern_order[position]
+        fragment_size = fragment_sizes[pattern_index]
+        for option in option_lists[pattern_index]:
+            if not option[1].isdisjoint(used_atoms):
+                continue
+            choices[pattern_index] = option
+            search(
+                position + 1,
+                used_atoms | option[1],
+                quality + option[0] / fragment_size,
+            )
+            choices[pattern_index] = None
+
+    search(0, frozenset(), 0.0)
+    return best_choices
+
+
 class OptimizedVF2:
-    """
-    优化版 VF2：支持返回最佳匹配的索引映射
-    """
+    """Compatibility wrapper around the permutation-invariant matcher."""
 
     def __init__(self, frag_adj, frag_types, target_adj, target_types, blacklist=None):
         self.f_adj, self.f_types = frag_adj, frag_types
         self.t_adj, self.t_types = target_adj, target_types
         self.f_size = len(frag_types)
         self.t_size = len(target_types)
-
-        self.core_1 = {}  # frag -> target (当前递归路径)
-        self.core_2 = {}  # target -> frag (当前递归路径)
-
+        self.blacklist = set() if blacklist is None else set(blacklist)
         self.max_matched = 0
-        self.best_mapping = {}  # [新增] 存储最佳的 frag -> target 映射副本
-
-        self.blacklist = blacklist if blacklist is not None else set()
-
-    def is_feasible(self, f_node, t_node):
-        # 语义检查
-        if self.f_types[f_node] != self.t_types[t_node]:
-            return False
-
-        # 语法检查：检查已匹配邻居的键类型一致性
-        for f_neighbor in np.where(self.f_adj[f_node] != 0)[0]:
-            if f_neighbor in self.core_1:
-                t_neighbor = self.core_1[f_neighbor]
-                if self.t_adj[t_node][t_neighbor] != self.f_adj[f_node][f_neighbor]:
-                    return False
-        return True
+        self.best_mapping = {}
 
     def match(self):
-        current_match_size = len(self.core_1)
-
-        # [修改] 更新最大匹配数时，同时保存当前的映射
-        if current_match_size > self.max_matched:
-            self.max_matched = current_match_size
-            self.best_mapping = self.core_1.copy()  # 必须 copy，因为 core_1 会回溯变化
-
-        if current_match_size == self.f_size:
-            return True  # 完全匹配
-
-        # 剪枝
-        if current_match_size + (self.f_size - current_match_size) <= self.max_matched:
-            return False
-
-        # 寻找下一个待匹配节点
-        f_node = 0
-        while f_node < self.f_size and f_node in self.core_1:
-            f_node += 1
-
-        for t_node in range(self.t_size):
-            if t_node in self.blacklist:
-                continue
-            if t_node not in self.core_2:
-                if self.is_feasible(f_node, t_node):
-                    # 尝试匹配（回溯步）
-                    self.core_1[f_node] = t_node
-                    self.core_2[t_node] = f_node
-
-                    if self.match(): return True
-
-                    # 撤销匹配
-                    del self.core_1[f_node]
-                    del self.core_2[t_node]
-        return False
+        options = _connected_match_options(
+            self.f_adj,
+            self.f_types,
+            self.t_adj,
+            self.t_types,
+            blacklist=self.blacklist,
+        )
+        if options:
+            self.max_matched = options[0][0]
+            self.best_mapping = options[0][2]
+        return self.max_matched == self.f_size
 
 
 def check_subgraph_proportionVF2(dataset_info, fragment_x, fragment_atom_type, fragment_mask,
@@ -275,56 +487,18 @@ def check_subgraph_proportionVF2(dataset_info, fragment_x, fragment_atom_type, f
 
 def check_subgraph_proportionVF2_optimized(dataset_info, fragment_x, fragment_atom_type, fragment_mask,
                                            target_x, target_atom_type, target_mask, blacklist=None):
-    # 辅助函数...
-    def preprocess(x, types, mask):
-        valid = mask.squeeze(-1) == 1
-        return x[valid].detach().cpu().numpy(), types[valid].detach().cpu().numpy()
-
-    f_coords_cpu, f_types_idx = preprocess(fragment_x, fragment_atom_type, fragment_mask)
-    t_coords_cpu, t_types_idx = preprocess(target_x, target_atom_type, target_mask)
-
-    f_types =[dataset_info['atom_decoder'][i] for i in f_types_idx]
-    t_types =[dataset_info['atom_decoder'][i] for i in t_types_idx]
-
-    if not f_types: return 0.0,[]
-
-    # 1. 快速启发式过滤：MCS
-    # MCS 始终在【完整的】分子上运行，不管黑名单。
-    # 逻辑：如果完整分子都不包含该片段，那扣除黑名单后更不可能包含。
-    f_mol = build_mol_from_coords_and_types(f_coords_cpu, f_types)
-    t_mol = build_mol_from_coords_and_types(t_coords_cpu, t_types)
-
-    if f_mol is None or t_mol is None: return 0.0,[]
-
-    mcs_result = rdFMCS.FindMCS([f_mol, t_mol],
-                                bondCompare=rdFMCS.BondCompare.CompareOrder,
-                                atomCompare=rdFMCS.AtomCompare.CompareElements,
-                                timeout=2)
-
-    f_atoms = f_mol.GetNumAtoms()
-    f_bonds = f_mol.GetNumBonds()
-
-    mcs_atom_ratio = mcs_result.numAtoms / f_atoms if f_atoms > 0 else 0
-    mcs_bond_ratio = mcs_result.numBonds / f_bonds if f_bonds > 0 else 1.0
-    mcs_proportion = (mcs_atom_ratio * 0.5 + mcs_bond_ratio * 0.5) * 100
-
-    # 2. 只有当 MCS 认为很接近时，才调用昂贵的精确 VF2
-    if mcs_proportion > 80:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            # [修改]: 把 blacklist 传给底层的精确匹配函数
-            future = executor.submit(
-                check_subgraph_proportionVF2,
-                dataset_info, fragment_x, fragment_atom_type, fragment_mask,
-                target_x, target_atom_type, target_mask, blacklist  # <--- 传递 blacklist
-            )
-            try:
-                return future.result(timeout=10)
-            except concurrent.futures.TimeoutError:
-                return mcs_proportion,[]
-            except Exception:
-                return 0.0, []
-
-    return mcs_proportion * 0.5,[]
+    # Keep the historical public entry point, but use exactly the same
+    # permutation-invariant score and mapping semantics as the reference path.
+    return check_subgraph_proportionVF2(
+        dataset_info,
+        fragment_x,
+        fragment_atom_type,
+        fragment_mask,
+        target_x,
+        target_atom_type,
+        target_mask,
+        blacklist=blacklist,
+    )
 
 
 def read_mol(file,dataset_info,device):
@@ -2143,38 +2317,124 @@ def _to_cpu(mol):
     return new_mol
 
 
+def _extract_matching_graph(mol, dataset_info):
+    """Build a bond graph and retain local-to-padded atom index mapping."""
+    mask = mol['node_mask'].squeeze(-1) == 1
+    valid_indices = torch.nonzero(mask).flatten().detach().cpu().numpy()
+    coordinates = mol['x'][mask].detach().cpu().numpy()
+    type_indices = mol['atom_type'][mask].detach().cpu().numpy()
+    atom_types = [
+        dataset_info['atom_decoder'][int(type_index)]
+        for type_index in type_indices
+    ]
+    return (
+        get_bond_mat(coordinates, atom_types),
+        atom_types,
+        valid_indices,
+    )
+
+
+def _match_pattern_collection(mol, patt_list, dataset_info, exclusive=True):
+    """Jointly match patterns and return per-pattern missing-atom percentages.
+
+    When ``exclusive`` is true, one target atom may belong to at most one
+    pattern.  Complete embeddings are attempted first; if no joint complete
+    assignment exists, connected partial embeddings are optimized globally.
+    """
+    target_adj, target_types, target_valid_indices = _extract_matching_graph(
+        mol, dataset_info
+    )
+    fragment_graphs = [
+        _extract_matching_graph(pattern, dataset_info)[:2]
+        for pattern in patt_list
+    ]
+    fragment_sizes = [len(fragment_types) for _, fragment_types in fragment_graphs]
+
+    full_option_lists = [
+        _full_match_options(
+            fragment_adj,
+            fragment_types,
+            target_adj,
+            target_types,
+        )
+        if fragment_types
+        else []
+        for fragment_adj, fragment_types in fragment_graphs
+    ]
+
+    if exclusive:
+        selected = _choose_disjoint_options(
+            full_option_lists,
+            [max(1, size) for size in fragment_sizes],
+        )
+    elif all(full_option_lists):
+        selected = [options[0] for options in full_option_lists]
+    else:
+        selected = None
+
+    if selected is None:
+        option_lists = []
+        for (fragment_adj, fragment_types), full_options in zip(
+            fragment_graphs, full_option_lists
+        ):
+            options = _connected_match_options(
+                fragment_adj,
+                fragment_types,
+                target_adj,
+                target_types,
+                full_options=full_options,
+            )
+            # An empty match keeps the global optimizer defined even when a
+            # pattern has no atom type in common with the target.
+            options.append((0, frozenset(), {}))
+            option_lists.append(options)
+
+        if exclusive:
+            selected = _choose_disjoint_options(
+                option_lists,
+                [max(1, size) for size in fragment_sizes],
+            )
+        else:
+            selected = [options[0] for options in option_lists]
+
+    if selected is None:
+        selected = [(0, frozenset(), {}) for _ in patt_list]
+
+    raw_scores = []
+    matched_local_indices = set()
+    for fragment_size, option in zip(fragment_sizes, selected):
+        matched_size = option[0]
+        raw_scores.append(
+            100.0
+            if fragment_size == 0
+            else 100.0 * (1.0 - matched_size / fragment_size)
+        )
+        matched_local_indices.update(option[1])
+
+    matched_global_indices = [
+        int(target_valid_indices[index])
+        for index in sorted(matched_local_indices)
+    ]
+    return raw_scores, matched_global_indices
+
+
 def _evaluate_single_molecule_patt(mol, patt_list, dataset_info, tolerance, exclusive=True):
     """
     Worker 函数：处理单个分子的多片段匹配逻辑。
     必须定义在顶层以支持多进程序列化。
     """
     num_patterns = len(patt_list)
-    raw_scores = []
-    all_matched_indices = []
-
     # --- A. 计算原始匹配得分 ---
     if mol.get('Constraint', 0) == 0:
-        # [核心改动]：维护一个属于该分子的集合黑名单
-        global_blacklist = set()
-
-        for p in patt_list:
-            # target_mask 保持原样不动，传入 blacklist
-            matched_percent, matched_idx = check_subgraph_proportionVF2_optimized(
-                dataset_info,
-                p['x'].cpu(), p['atom_type'].cpu(), p['node_mask'].cpu(),
-                mol['x'], mol['atom_type'], mol['node_mask'],
-                blacklist=global_blacklist if exclusive else None
-            )
-
-            raw_scores.append(100.0 - matched_percent)
-
-            if matched_idx:
-                all_matched_indices.extend(matched_idx)
-                # 更新黑名单，后续的片段将无法再匹配这些原子
-                if exclusive:
-                    global_blacklist.update(matched_idx)
+        raw_scores, all_matched_indices = _match_pattern_collection(
+            mol,
+            patt_list,
+            dataset_info,
+            exclusive=exclusive,
+        )
     else:
         raw_scores = [100.0] * num_patterns
+        all_matched_indices = []
 
     # --- B. 应用 ϵ-约束 (Tolerance) ---
     final_con_list = []
@@ -2199,7 +2459,14 @@ def _evaluate_single_molecule_patt(mol, patt_list, dataset_info, tolerance, excl
     }
 
 
-def EvalPop_Patt_MP(Pop, patt, dataset_info, tolerance, num_workers=8):
+def EvalPop_Patt_MP(
+    Pop,
+    patt,
+    dataset_info,
+    tolerance,
+    num_workers=8,
+    exclusive=True,
+):
     """
     多进程并行版：评价种群相对于参考片段的结构约束。跳过已评估（EvaluatedSC=True）的分子。
     """
@@ -2208,6 +2475,8 @@ def EvalPop_Patt_MP(Pop, patt, dataset_info, tolerance, num_workers=8):
         for mol in Pop:
             mol['structure_Con'] = [0.0]
             mol['matched_indices'] = []
+            mol.pop('FakeSC', None)
+            mol['EvaluatedSC'] = True
         return Pop
 
     # 2. 统一约束格式（支持单片段或多片段列表）
@@ -2224,7 +2493,8 @@ def EvalPop_Patt_MP(Pop, patt, dataset_info, tolerance, num_workers=8):
         _evaluate_single_molecule_patt,
         patt_list=cpu_patt_list,
         dataset_info=dataset_info,
-        tolerance=tolerance
+        tolerance=tolerance,
+        exclusive=exclusive,
     )
 
     # 4. 筛选出未评估的分子及其索引
@@ -2267,14 +2537,16 @@ def EvalPop_Patt_MP(Pop, patt, dataset_info, tolerance, num_workers=8):
     for idx, res in zip(indices_to_process, results):
         Pop[idx]['structure_Con'] = res['structure_Con']
         Pop[idx]['matched_indices'] = res['matched_indices']
-        if res.get('FakeSC') is not None:  # 避免 None 覆盖已有值
+        if res.get('FakeSC') is not None:
             Pop[idx]['FakeSC'] = res['FakeSC']
+        else:
+            Pop[idx].pop('FakeSC', None)
         Pop[idx]['EvaluatedSC'] = True      # 标记评估完成
 
     return Pop
 
 
-def EvalPop_Patt(Pop, patt, dataset_info, tolerance):
+def EvalPop_Patt(Pop, patt, dataset_info, tolerance, exclusive=True):
     """
     评价种群相对于一个或多个参考片段的结构约束，并保存匹配索引。
     """
@@ -2283,6 +2555,8 @@ def EvalPop_Patt(Pop, patt, dataset_info, tolerance):
         for mol in Pop:
             mol['structure_Con'] = [0.0]
             mol['matched_indices'] = []  # 初始化为空
+            mol.pop('FakeSC', None)
+            mol['EvaluatedSC'] = True
         return Pop
 
     # 2. 统一输入格式
@@ -2291,57 +2565,26 @@ def EvalPop_Patt(Pop, patt, dataset_info, tolerance):
     else:
         patt_list = [patt]
 
-    num_patterns = len(patt_list)
-
     # 3. 使用 tqdm 包装循环
     pbar = tqdm(Pop, desc="Multi-Pattern Matching", leave=False)
 
     for mol in pbar:
-        raw_scores = []
-        all_matched_indices = []  # 用于收集所有片段匹配到的原子索引
-        if mol['EvaluatedSC'] == True: continue
-        # --- A. 计算原始匹配得分 ---
-        if mol.get('Constraint', 0) == 0:
-            for p in patt_list:
-                # 关键修改：假设 check_subgraph... 返回 (百分比, 索引列表)
-                # 如果你的函数只返回 float，请确保先更新那个函数
-                matched_percent, matched_idx = check_subgraph_proportionVF2_optimized(
-                    dataset_info,
-                    p['x'], p['atom_type'], p['node_mask'],
-                    mol['x'], mol['atom_type'], mol['node_mask']
-                )
-
-                # 记录得分
-                raw_scores.append(100.0 - matched_percent)
-
-                # 收集匹配索引 (如果有匹配)
-                if matched_idx:
-                    all_matched_indices.extend(matched_idx)
-        else:
-            raw_scores = [100.0] * num_patterns
-
-        # --- B. 应用 ϵ-约束 ---
-        final_con_list = []
-        fake_sc_list = []
-
-        for sc in raw_scores:
-            if tolerance > sc:
-                final_con_list.append(0.0)
-                fake_sc_list.append(sc if sc > 0 else 0.0)
-            else:
-                final_con_list.append(sc)
-                fake_sc_list.append(0.0)
-
-        # --- C. 赋值回分子对象 ---
-        mol['structure_Con'] = final_con_list
-
-        # [新增] 保存匹配索引 (去重并排序)
-        # 这样画图时就能高亮所有片段覆盖的原子
-        mol['matched_indices'] = sorted(list(set(all_matched_indices)))
+        if mol.get('EvaluatedSC', False):
+            continue
+        result = _evaluate_single_molecule_patt(
+            mol,
+            patt_list,
+            dataset_info,
+            tolerance,
+            exclusive=exclusive,
+        )
+        mol['structure_Con'] = result['structure_Con']
+        mol['matched_indices'] = result['matched_indices']
         mol['EvaluatedSC'] = True
-
-        if any(x > 0 for x in fake_sc_list):
-            mol['FakeSC'] = fake_sc_list
+        if result.get('FakeSC') is not None:
+            mol['FakeSC'] = result['FakeSC']
+        else:
+            mol.pop('FakeSC', None)
 
     return Pop
 
