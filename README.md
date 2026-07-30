@@ -105,6 +105,14 @@ Run every experiment family with:
 bash scripts/run_all_revision.sh --gpus 0,1,2,3
 ```
 
+Run only the eight reviewer experiment groups (noise/inheritance, scheduler,
+operators without PAES, structural distance, QM9-CMOP, docking credibility,
+three-population lineage, and the fixed-budget protocol) with:
+
+```bash
+bash scripts/run_reviewer_additions.sh --gpus 0,1,2,3
+```
+
 See [`docs/EXPERIMENT_RUNTIME.md`](docs/EXPERIMENT_RUNTIME.md) for suite
 configuration, JSONL schemas, plotting, summary tables, and the configurable
 QM9-CMOP interface. A command-oriented Chinese manual is available at

@@ -1,0 +1,29 @@
+{
+  "suite_id": "reviewer_operators",
+  "description": "Operator/selection ablation. PAES is intentionally excluded.",
+  "seeds": [0, 1, 2, 3, 4],
+  "checkpoint_paths": [
+    "tfgmodels/EDMsecond/generative_model_ema.npy",
+    "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+  ],
+  "tasks": [
+    {"id": "operator_full_egd", "type": "operator_ablation", "problem": "qm9_frontier_alignment", "method": "Full EGD/SAES", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "full", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "operator_mutation_only", "type": "operator_ablation", "problem": "qm9_frontier_alignment", "method": "Mutation-only ES", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "operator_crossover_only", "type": "operator_ablation", "problem": "qm9_frontier_alignment", "method": "Crossover-only", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "operator_spea2", "type": "operator_ablation", "problem": "qm9_frontier_alignment", "method": "SPEA2", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "spea2", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "operator_topn", "type": "operator_ablation", "problem": "qm9_frontier_alignment", "method": "Top-N", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "topn", "--scheduler-mode", "fixed", "--fixed-noise", "1000", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]}
+  ],
+  "summary_metrics": [
+    {"name": "hv", "direction": "max"},
+    {"name": "feasible_rate", "direction": "max"},
+    {"name": "internal_tanimoto_diversity", "direction": "max"},
+    {"name": "property_predictor_calls", "direction": "min"},
+    {"name": "evaluation_failures", "direction": "min"},
+    {"name": "evaluation_failure_rate", "direction": "min"},
+    {"name": "wall_time_seconds", "direction": "min"}
+  ]
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -78,6 +79,12 @@ def expand_runs(suite: Mapping[str, Any]) -> list[ExpandedRun]:
     runs: list[ExpandedRun] = []
     suite_id = str(suite["suite_id"])
     default_seeds = suite.get("seeds", [42])
+    default_checkpoints = tuple(
+        str(value) for value in suite.get("checkpoint_paths", ())
+    )
+    default_identity_files = tuple(
+        str(value) for value in suite.get("identity_files", ())
+    )
     for task in suite["tasks"]:
         seeds = task.get("seeds", default_seeds)
         for seed in seeds:
@@ -93,10 +100,22 @@ def expand_runs(suite: Mapping[str, Any]) -> list[ExpandedRun]:
                     module=task.get("module"),
                     args=tuple(str(value) for value in task.get("args", ())),
                     checkpoint_paths=tuple(
-                        str(value) for value in task.get("checkpoint_paths", ())
+                        dict.fromkeys(
+                            default_checkpoints
+                            + tuple(
+                                str(value)
+                                for value in task.get("checkpoint_paths", ())
+                            )
+                        )
                     ),
                     identity_files=tuple(
-                        str(value) for value in task.get("identity_files", ())
+                        dict.fromkeys(
+                            default_identity_files
+                            + tuple(
+                                str(value)
+                                for value in task.get("identity_files", ())
+                            )
+                        )
                     ),
                     environment={
                         str(key): str(value)
@@ -108,6 +127,7 @@ def expand_runs(suite: Mapping[str, Any]) -> list[ExpandedRun]:
     return runs
 
 
+@lru_cache(maxsize=128)
 def _file_sha256(path: Path) -> str | None:
     if not path.exists() or not path.is_file():
         return None

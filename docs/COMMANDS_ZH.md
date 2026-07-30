@@ -45,6 +45,13 @@ DEMO_CONDA_ENV=my_env bash scripts/run_suite.sh \
 | `qm9_cmop` | 可自定义 QM9 约束多目标 | `demo_runtime.qm9_cmop` |
 | `qm9_struct_cmop` | 带结构约束的多目标 | 原有 task8 脚本 |
 | `docking_mop` | Docking 多目标 | 原有 task5 脚本 |
+| `reviewer_noise_inheritance` | 固定噪声—遗传继承曲线 | QM9-CMOP 可选算子接口 |
+| `reviewer_scheduler` | 噪声调度器机制 | QM9-CMOP 可选调度器接口 |
+| `reviewer_operators` | 算子/选择消融（不含 PAES） | QM9-CMOP 可选算子接口 |
+| `reviewer_distance` | SAES 2D/3D 距离消融 | QM9-CMOP 可选距离接口 |
+| `reviewer_docking_validation` | PoseBusters、力场与 QVina 可信度 | `demo_runtime.docking_validation` |
+| `reviewer_three_population` | A/B/C 谱系与迁移 | task8 的只读审计接口 |
+| `reviewer_protocol` | 先验、HV 预算、成本与敏感性 | QM9-CMOP 协议接口 |
 
 所有套件配置位于 `configs/suites/`。
 
@@ -190,13 +197,13 @@ bash scripts/run_suite.sh \
 bash scripts/run_paper_tables.sh --gpus 0,1,2,3
 ```
 
-只运行本次已实现的审稿新增 QM9-CMOP：
+只运行审稿意见新增的 8 组实验：
 
 ```bash
 bash scripts/run_reviewer_additions.sh --gpus 0,1,2,3
 ```
 
-按顺序运行论文表格和 QM9-CMOP，并在每类结束后绘图和汇总：
+按顺序运行论文表格和全部审稿新增实验，并在每类结束后绘图和汇总：
 
 ```bash
 bash scripts/run_all_revision.sh --gpus 0,1,2,3
@@ -300,7 +307,87 @@ bash scripts/run_suite.sh \
 QM9-CMOP 只使用仓库中的 EGNN 属性预测器，指标元数据记录为
 `egnn_property_predictor`；验证流程不调用 xTB 或 DFT。
 
-## 7. 单独重新绘图
+QM9-CMOP 的审稿实验参数均为可选参数；不传时保留原来的 full
+crossover/mutation、Validity×Atom Stability 自适应调度和原 SAES 混合距离：
+
+```text
+--operator-mode full|mutation_only|crossover_only|spea2|topn
+--scheduler-mode fixed|adaptive_validity|adaptive_inheritance
+--fixed-noise 0..1000
+--distance-mode objective|morgan|usrcat|mixed|raw_coords
+--evaluation-budget N
+--training-reference qm9/temp/qm9_smiles.pickle
+--population-size N
+--min-distance FLOAT
+--noise-step N
+```
+
+`reviewer_operators` 明确不包含 PAES，命令行的 `--operator-mode` 也不接受
+`paes`。
+
+## 7. 审稿新增 8 组实验
+
+先只查看全部任务，不启动模型：
+
+```bash
+for suite in \
+  reviewer_noise_inheritance \
+  reviewer_scheduler \
+  reviewer_operators \
+  reviewer_distance \
+  qm9_cmop \
+  reviewer_docking_validation \
+  reviewer_three_population \
+  reviewer_protocol; do
+  bash scripts/run_suite.sh --suite "$suite" --list-tasks
+done
+```
+
+逐组正式启动：
+
+```bash
+bash scripts/run_suite.sh --suite reviewer_noise_inheritance --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_scheduler --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_operators --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_distance --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite qm9_cmop --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_docking_validation --gpus 0 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_three_population --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_protocol --gpus 0,1 --skip-completed --plot --summarize
+```
+
+一次启动全部 8 组：
+
+```bash
+bash scripts/run_reviewer_additions.sh \
+  --gpus 0,1,2,3 \
+  --results-root results/reviewer_additions
+```
+
+`protocol_hv_100k` 是高成本任务，建议先独立 dry-run，再单独启动：
+
+```bash
+bash scripts/run_suite.sh \
+  --suite reviewer_protocol \
+  --task protocol_hv_100k \
+  --gpus 0,1,2,3 \
+  --skip-completed \
+  --dry-run
+
+bash scripts/run_suite.sh \
+  --suite reviewer_protocol \
+  --task protocol_hv_100k \
+  --gpus 0,1,2,3 \
+  --skip-completed \
+  --plot \
+  --summarize
+```
+
+Docking 可信度验证使用 PoseBusters、MMFF94/UFF、Open Babel 和 QVina，
+报告松弛 RMSD、应变释放、重打分一致性、相互作用分类和结合模式多样性；
+不调用 xTB 或 DFT。
+
+## 8. 单独重新绘图
 
 绘图只读取已完成任务的 `metrics.jsonl` 和 `population.jsonl`，不会重新
 运行模型：
@@ -321,7 +408,7 @@ results/qm9_cmop/plots/<problem>/final_pareto_*.pdf
 曲线展示跨已完成运行的均值和 95% 置信区间；二目标和三目标任务会生成
 最终经验 Pareto 图。
 
-## 8. 单独生成论文汇总表
+## 9. 单独生成论文汇总表
 
 ```bash
 bash scripts/summarize_suite.sh \
@@ -343,7 +430,7 @@ results/qm9_cmop/tables/table_<metric>.tex
 LaTeX 表格按套件中的指标方向将最优值加粗、次优值加下划线。未完成任务
 不会用最后一代结果补齐。
 
-## 9. 查看 JSONL 与运行状态
+## 10. 查看 JSONL 与运行状态
 
 单次运行目录结构：
 
@@ -353,6 +440,9 @@ results/<suite>/<problem>/<method>/seed_<seed>_<hash>/
   metrics.jsonl
   population.jsonl
   lineage.jsonl
+  inheritance.jsonl
+  transfers.jsonl
+  docking_validation.jsonl
   events.jsonl
   stdout.log
   stderr.log
@@ -392,7 +482,7 @@ find results -name .complete -print
 find results -name stderr.log -size +0 -print
 ```
 
-## 10. 常见问题
+## 11. 常见问题
 
 ### 找不到 Conda
 

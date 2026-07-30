@@ -1,0 +1,38 @@
+{
+  "suite_id": "reviewer_noise_inheritance",
+  "description": "Fixed-noise inheritance curves for crossover and mutation, with the original adaptive scheduler as reference.",
+  "seeds": [0, 1, 2, 3, 4],
+  "checkpoint_paths": [
+    "tfgmodels/EDMsecond/generative_model_ema.npy",
+    "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+  ],
+  "tasks": [
+    {"id": "noise_000_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover t=0", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "fixed", "--fixed-noise", "0", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_250_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover t=250", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "fixed", "--fixed-noise", "250", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_500_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover t=500", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "fixed", "--fixed-noise", "500", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_750_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover t=750", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "fixed", "--fixed-noise", "750", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_1000_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover t=1000", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "fixed", "--fixed-noise", "1000", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_adaptive_crossover", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Crossover adaptive", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "crossover_only", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_000_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation t=0", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "fixed", "--fixed-noise", "0", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_250_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation t=250", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "fixed", "--fixed-noise", "250", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_500_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation t=500", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "fixed", "--fixed-noise", "500", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_750_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation t=750", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "fixed", "--fixed-noise", "750", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_1000_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation t=1000", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "fixed", "--fixed-noise", "1000", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "noise_adaptive_mutation", "type": "noise_inheritance", "problem": "qm9_frontier_alignment", "method": "Mutation adaptive", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--operator-mode", "mutation_only", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]}
+  ],
+  "summary_metrics": [
+    {"name": "inheritance.inheritance_score.mean", "direction": "max"},
+    {"name": "inheritance.morgan_similarity.mean", "direction": "max"},
+    {"name": "inheritance.mcs_atom_fraction.mean", "direction": "max"},
+    {"name": "inheritance.murcko_retention.mean", "direction": "max"},
+    {"name": "inheritance.fragment_retention.mean", "direction": "max"},
+    {"name": "inheritance.mcs_3d_rmsd.mean", "direction": "min"},
+    {"name": "inheritance.objective_improvement.mean", "direction": "max"},
+    {"name": "validity", "direction": "max"},
+    {"name": "atom_stability", "direction": "max"}
+  ]
+}

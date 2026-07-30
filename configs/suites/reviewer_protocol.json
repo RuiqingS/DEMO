@@ -1,0 +1,33 @@
+{
+  "suite_id": "reviewer_protocol",
+  "description": "QM9 training-set novelty, fixed-HV, equal-budget, HV(D)/HV(100K), cost, CI, and hyperparameter sensitivity protocol.",
+  "seeds": [0, 1, 2, 3, 4],
+  "checkpoint_paths": [
+    "tfgmodels/EDMsecond/generative_model_ema.npy",
+    "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+  ],
+  "tasks": [
+    {"id": "protocol_hv_d", "type": "protocol", "problem": "qm9_frontier_alignment", "method": "HV(D=704)", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_hv_100k", "type": "protocol", "problem": "qm9_frontier_alignment", "method": "HV(100K)", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--evaluation-budget", "100000", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_population_16", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Population 16", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--population-size", "16", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_population_64", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Population 64", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--population-size", "64", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_noise_step_20", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Noise step 20", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--noise-step", "20", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_noise_step_50", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Noise step 50", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--noise-step", "50", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_min_distance_002", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Min distance 0.02", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "mixed", "--min-distance", "0.02", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]},
+    {"id": "protocol_min_distance_010", "type": "protocol_sensitivity", "problem": "qm9_frontier_alignment", "method": "Min distance 0.10", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "mixed", "--min-distance", "0.10", "--evaluation-budget", "704", "--training-reference", "qm9/temp/qm9_smiles.pickle"], "identity_files": ["configs/problems/qm9_frontier_alignment.json", "qm9/temp/qm9_smiles.pickle"]}
+  ],
+  "summary_metrics": [
+    {"name": "hv", "direction": "max"},
+    {"name": "train_nearest_tanimoto_mean", "direction": "min"},
+    {"name": "training_novelty_mean", "direction": "max"},
+    {"name": "scaffold_novelty", "direction": "max"},
+    {"name": "property_predictor_calls", "direction": "min"},
+    {"name": "evaluated_molecules", "direction": "min"},
+    {"name": "gpu_time_seconds", "direction": "min"},
+    {"name": "wall_time_seconds", "direction": "min"}
+  ]
+}

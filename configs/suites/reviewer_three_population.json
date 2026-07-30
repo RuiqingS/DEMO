@@ -1,0 +1,32 @@
+{
+  "suite_id": "reviewer_three_population",
+  "description": "A/B/C population membership and direct-versus-offspring transfer audit for the original structural CMOP implementation.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "three_population_lineage",
+      "type": "three_population_audit",
+      "problem": "qm9_struct_three_population",
+      "method": "SAES three-population",
+      "entrypoint": "task8_dual_pareto_optimize_multi_patt1_DEMO.py",
+      "backbone": "EDM",
+      "environment": {
+        "DEMO_USE_EDM": "1",
+        "DEMO_RECORD_THREE_POP": "1"
+      },
+      "checkpoint_paths": [
+        "tfgmodels/EDMsecond/generative_model_ema.npy"
+      ],
+      "identity_files": [
+        "demo_runtime/three_population.py"
+      ]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "phi_mean", "direction": "max"},
+    {"name": "feasible_rate", "direction": "max"},
+    {"name": "mean_violation", "direction": "min"},
+    {"name": "internal_tanimoto_diversity", "direction": "max"},
+    {"name": "unique_smiles_rate", "direction": "max"}
+  ]
+}

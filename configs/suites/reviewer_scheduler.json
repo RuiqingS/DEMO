@@ -1,0 +1,29 @@
+{
+  "suite_id": "reviewer_scheduler",
+  "description": "Fixed, original validity/stability adaptive, and inheritance-aware noise schedulers under one evaluation budget.",
+  "seeds": [0, 1, 2, 3, 4],
+  "checkpoint_paths": [
+    "tfgmodels/EDMsecond/generative_model_ema.npy",
+    "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+  ],
+  "tasks": [
+    {"id": "scheduler_fixed_500", "type": "scheduler_ablation", "problem": "qm9_frontier_alignment", "method": "Fixed t=500", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--scheduler-mode", "fixed", "--fixed-noise", "500", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "scheduler_validity_stability", "type": "scheduler_ablation", "problem": "qm9_frontier_alignment", "method": "Validity x atom stability", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--scheduler-mode", "adaptive_validity", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"], "duplicate_note": "Same scheduler family as the default QM9-CMOP command, but here it is run under the common 704-evaluation protocol."},
+    {"id": "scheduler_inheritance_aware", "type": "scheduler_ablation", "problem": "qm9_frontier_alignment", "method": "Integrity x inheritance", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--scheduler-mode", "adaptive_inheritance", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]}
+  ],
+  "summary_metrics": [
+    {"name": "hv", "direction": "max"},
+    {"name": "feasible_rate", "direction": "max"},
+    {"name": "validity", "direction": "max"},
+    {"name": "unique_smiles_rate", "direction": "max"},
+    {"name": "offspring_exact_novelty_rate", "direction": "max"},
+    {"name": "offspring_fingerprint_novelty_mean", "direction": "max"},
+    {"name": "inheritance.inheritance_score.mean", "direction": "max"},
+    {"name": "inheritance.objective_improvement.mean", "direction": "max"},
+    {"name": "noise_t", "direction": "min"}
+  ]
+}

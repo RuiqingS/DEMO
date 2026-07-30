@@ -69,7 +69,7 @@ configuration file. `--list-tasks` reports task ids, method labels, backbones,
 and known duplicate-command notes.
 
 The exact mapping for Tables 1–5, imported ablations, duplicate commands, and
-the reviewer QM9-CMOP experiment is documented in
+all eight reviewer experiment groups is documented in
 [`PAPER_EXPERIMENT_COMMANDS_ZH.md`](PAPER_EXPERIMENT_COMMANDS_ZH.md).
 
 ## Legacy-reference consistency
@@ -97,6 +97,9 @@ results/<suite>/<problem>/<method>/seed_<seed>_<hash>/
   metrics.jsonl
   population.jsonl
   lineage.jsonl
+  inheritance.jsonl       # parent–offspring structural diagnostics, when enabled
+  transfers.jsonl         # A/B/C direct and offspring transfers, when enabled
+  docking_validation.jsonl # per-complex pose/docking checks, when enabled
   events.jsonl
   stdout.log
   stderr.log

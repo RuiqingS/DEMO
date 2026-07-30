@@ -95,7 +95,30 @@ def plot_suite_results(suite_dir: str | Path) -> Path:
         )
 
     _plot_pareto_views(suite_path, output_dir)
+    _plot_reviewer_views(suite_path, output_dir)
     return output_dir
+
+
+def _plot_reviewer_views(suite_dir: Path, output_dir: Path) -> None:
+    from .plots.reviewer import plot_reviewer_parameter_views
+
+    latest: dict[tuple[str, int, str, str], dict[str, Any]] = {}
+    for _, record in _metric_records(suite_dir):
+        key = (
+            str(record.get("run_id", "")),
+            int(record.get("internal_run_index", 0)),
+            str(record.get("problem", "unknown")),
+            str(record.get("population", "main")),
+        )
+        if key not in latest or int(record.get("generation", 0)) > int(
+            latest[key].get("generation", -1)
+        ):
+            latest[key] = record
+    plot_reviewer_parameter_views(
+        suite_dir.name,
+        list(latest.values()),
+        output_dir,
+    )
 
 
 def _plot_pareto_views(suite_dir: Path, output_dir: Path) -> None:

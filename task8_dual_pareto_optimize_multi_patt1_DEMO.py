@@ -307,6 +307,8 @@ def main():
             Pop_A = deepcopy(PopMain)
             Pop_B = deepcopy(PopMain)
             Pop_C = deepcopy(PopMain)
+            from demo_runtime.three_population import ThreePopulationAudit
+            population_audit = ThreePopulationAudit.from_environment(run_idx)
             # PopDiv = DEMO.EnvironmentalSelectionDiv(Initial_Pool, PopMain, NPops, dataset_info)
 
             scheduler = evo.AdaptiveNoiseScheduler(dataset_info=dataset_info, initial_noise=1000, min_noise=0,
@@ -319,6 +321,12 @@ def main():
             UUVR = evo.get_population_duplicate_rate(Pop_C, dataset_info, NPops, usecon=False)
             tracker.update(Pop_A, Obj, FeasibleRate=fr_init, AvgConstraint=init_ac, AddNoise=current_noise,
                            Score=scheduler.score, UVR=unique_valid_rate, UUVR=UUVR)
+            population_audit.record(
+                0,
+                {"A": Pop_A, "B": Pop_B, "C": Pop_C},
+                Obj,
+                dataset_info,
+            )
 
             # ==========================================
             # 4. 进化迭代循环 (Generation Loop)
@@ -341,6 +349,11 @@ def main():
                 Off_A_Int = []
                 if len(Parent_A_Internal) >= 2:
                     Off_A_Int = evo.valOff(Parent_A_Internal, min_n_nodes, max_n_nodes, device, max_n_nodes, nodes_dist)
+                Off_A_Int_Descriptors = population_audit.crossover_descriptors(
+                    Off_A_Int,
+                    Parent_A_Internal,
+                    "A",
+                )
 
                 # 动作 2：A 与目标片段强制拼接 (组装)
                 pattcrops_noised = []
@@ -351,12 +364,25 @@ def main():
                 pattcrops_noised = evo.add_noise(model, pattcrops_noised, device)
 
                 Off_A_Forced = []
+                Off_A_Forced_Descriptors = []
                 import random
                 for p_a in Parent_A_Forced:
                     target_frag = random.choice(pattcrops_noised)
                     sub_off = evo.valOff_Patt(target_frag, [p_a], min_n_nodes, max_n_nodes, device, max_n_nodes,
                                               nodes_dist)
                     Off_A_Forced.extend(sub_off)
+                    if population_audit.enabled:
+                        assembly_parent_ids = population_audit.ensure_ids(
+                            [p_a, target_frag]
+                        )
+                        Off_A_Forced_Descriptors.extend(
+                            {
+                                "operator": "fragment_assembly",
+                                "parent_ids": assembly_parent_ids,
+                                "source_populations": ["A"],
+                            }
+                            for _ in sub_off
+                        )
 
                 # 汇总 A 产生的子代
                 Off_A_Total = Off_A_Int + Off_A_Forced
@@ -382,10 +408,13 @@ def main():
 
                 # 2. 独立锦标赛选择 (分离的基因池)
                 Parent_B = []
+                Parent_B_Sources = []
                 if n_B > 0:
                     Parent_B.extend(evo.k_tournament_selection(Pop_B, 2, n_B))
+                    Parent_B_Sources.extend(["B"] * n_B)
                 if n_C > 0:
                     Parent_B.extend(evo.k_tournament_selection(Pop_C, 1, n_C))
+                    Parent_B_Sources.extend(["C"] * n_C)
 
                 # 3. 统一加噪 (构象松弛)
                 for p in Parent_B:
@@ -393,12 +422,21 @@ def main():
                     p['EvaluatedSC'] = False  # 需要重新评估片段
 
                 Parent_B_Noised = evo.add_noise(model, Parent_B, device)
+                Parent_B_Descriptors = population_audit.mutation_descriptors(
+                    Parent_B,
+                    Parent_B_Sources,
+                )
 
                 # ==================================
                 # 统一去噪车间 (GPU Batch)
                 # ==================================
                 # 放入去噪器的包含：A 的内部子代、A 的拼接子代、B 的变异父代
                 Candidates_To_Denoise = Off_A_Total + Parent_B_Noised
+                Candidate_Descriptors = (
+                    Off_A_Int_Descriptors
+                    + Off_A_Forced_Descriptors
+                    + Parent_B_Descriptors
+                )
 
                 Off_Denoised = evo.denoise_same_level(Candidates_To_Denoise, model, max_n_nodes, device, dataset_info,
                                                       preds, True)
@@ -406,6 +444,12 @@ def main():
                 # 统一评价
                 Off_Evaluated = DEMO.Get_Fitness_Pareto_Main(Off_Denoised, dataset_info, device, preds, max_n_nodes, Obj,
                                                             pattcrops, tolerance=0)
+                population_audit.register_offspring(
+                    Off_Evaluated,
+                    Candidate_Descriptors,
+                    gen + 1,
+                    current_noise,
+                )
 
                 # ==================================
                 # 货品分发与各车间环境选择
@@ -422,6 +466,12 @@ def main():
 
                 # 3. 游离骨架进入 A 车间 (排斥拼接，向未知的化学空间深处探索)
                 Pop_A = DEMO.EnvironmentalSelection_A(Central_Pool, NPops, Obj, dataset_info)
+                population_audit.record(
+                    gen + 1,
+                    {"A": Pop_A, "B": Pop_B, "C": Pop_C},
+                    Obj,
+                    dataset_info,
+                )
 
                 # ==================================
                 # 调度与日志

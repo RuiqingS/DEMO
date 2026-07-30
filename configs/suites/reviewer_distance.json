@@ -1,0 +1,27 @@
+{
+  "suite_id": "reviewer_distance",
+  "description": "SAES distance ablation: objective, Morgan, USRCAT, mixed, and raw-coordinate negative control.",
+  "seeds": [0, 1, 2, 3, 4],
+  "checkpoint_paths": [
+    "tfgmodels/EDMsecond/generative_model_ema.npy",
+    "qm9/property_prediction/outputs/alpha/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/mu/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/gap/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/homo/best_checkpoint.npy",
+    "qm9/property_prediction/outputs/lumo/best_checkpoint.npy"
+  ],
+  "tasks": [
+    {"id": "distance_objective_only", "type": "distance_ablation", "problem": "qm9_frontier_alignment", "method": "Objective only", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "objective", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "distance_morgan_2d", "type": "distance_ablation", "problem": "qm9_frontier_alignment", "method": "Morgan 2D", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "morgan", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "distance_usrcat_3d", "type": "distance_ablation", "problem": "qm9_frontier_alignment", "method": "USRCAT 3D", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "usrcat", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]},
+    {"id": "distance_mixed_2d_3d", "type": "distance_ablation", "problem": "qm9_frontier_alignment", "method": "Morgan + USRCAT", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "mixed", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"], "duplicate_note": "Equivalent distance definition to the default SAES selector, now run under the shared ablation budget."},
+    {"id": "distance_raw_coordinates", "type": "distance_ablation", "problem": "qm9_frontier_alignment", "method": "Raw coordinates (negative)", "module": "demo_runtime.qm9_cmop", "args": ["--problem-config", "configs/problems/qm9_frontier_alignment.json", "--seed", "{seed}", "--distance-mode", "raw_coords", "--evaluation-budget", "704"], "identity_files": ["configs/problems/qm9_frontier_alignment.json"]}
+  ],
+  "summary_metrics": [
+    {"name": "hv", "direction": "max"},
+    {"name": "scaffold_count", "direction": "max"},
+    {"name": "internal_tanimoto", "direction": "min"},
+    {"name": "nearest_neighbor_distance_mean", "direction": "max"},
+    {"name": "mcs_redundancy_rate", "direction": "min"}
+  ]
+}

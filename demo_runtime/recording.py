@@ -258,7 +258,9 @@ class JsonlRunRecorder:
                 "problem": resolved_problem,
                 "population": population_name,
                 "generation": generation,
-                "metrics": {**json_safe(metrics), **feasibility},
+                # Explicit runtime metrics may include richer custom
+                # constraints than the legacy Constraint/structure_Con view.
+                "metrics": {**feasibility, **json_safe(metrics)},
                 "objectives": objective_stats,
             },
         )
@@ -286,19 +288,26 @@ class JsonlRunRecorder:
         generation: int,
         noise_t: int | float,
         source_population: str = "main",
+        target_population: str | None = None,
+        transfer_kind: str | None = None,
+        diagnostics: Mapping[str, Any] | None = None,
     ) -> None:
-        self.append(
-            "lineage",
-            {
-                "record_type": "lineage",
-                "generation": generation,
-                "child_id": self.molecule_id(child),
-                "parent_ids": list(parents),
-                "operator": operator,
-                "noise_t": noise_t,
-                "source_population": source_population,
-            },
-        )
+        record = {
+            "record_type": "lineage",
+            "generation": generation,
+            "child_id": self.molecule_id(child),
+            "parent_ids": list(parents),
+            "operator": operator,
+            "noise_t": noise_t,
+            "source_population": source_population,
+        }
+        if target_population is not None:
+            record["target_population"] = target_population
+        if transfer_kind is not None:
+            record["transfer_kind"] = transfer_kind
+        if diagnostics:
+            record["diagnostics"] = json_safe(diagnostics)
+        self.append("lineage", record)
 
 
 def get_env_recorder() -> JsonlRunRecorder | None:

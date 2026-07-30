@@ -209,9 +209,39 @@ bash scripts/run_paper_tables.sh \
 该脚本依次运行 `qm9_single`、`qm9_mop`、`docking_mop` 和
 `qm9_struct_cmop`，自动跳过已完成任务并生成图和汇总表。
 
-## 8. 审稿新增：可自定义 QM9-CMOP
+## 8. 审稿新增 8 点实验
 
-先验证属性、目标和约束配置；只报告 EGNN 属性预测器，不调用 xTB/DFT：
+| 点 | 实验 | 套件 | 默认运行数 |
+|---:|---|---|---:|
+| 1 | 固定噪声—遗传继承曲线 | `reviewer_noise_inheritance` | 12 条设置 × 5 seeds |
+| 2 | 固定/原始/继承感知调度器 | `reviewer_scheduler` | 3 × 5 seeds |
+| 3 | full、mutation-only、crossover-only、SPEA2、Top-N | `reviewer_operators` | 5 × 5 seeds |
+| 4 | objective、Morgan、USRCAT、2D+3D、raw-coordinate | `reviewer_distance` | 5 × 5 seeds |
+| 5 | 基于 QM9 的真实可自定义 CMOP | `qm9_cmop` | 20 seeds |
+| 6 | PoseBusters/力场/QVina/重打分可信度 | `reviewer_docking_validation` | 10 个 CD complexes |
+| 7 | A/B/C 成员、谱系和 A→B/B→C 转移 | `reviewer_three_population` | task8 原 20 次内部运行 |
+| 8 | 训练集先验、HV(D)/HV(100K)、成本和敏感性 | `reviewer_protocol` | 8 条设置 × 5 seeds |
+
+按点单独启动：
+
+```bash
+bash scripts/run_suite.sh --suite reviewer_noise_inheritance --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_scheduler --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_operators --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_distance --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite qm9_cmop --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_docking_validation --gpus 0 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_three_population --gpus 0,1 --skip-completed --plot --summarize
+bash scripts/run_suite.sh --suite reviewer_protocol --gpus 0,1 --skip-completed --plot --summarize
+```
+
+第 3 点按要求不含 PAES：套件里没有 PAES 任务，运行时接口也不接受 PAES。
+
+第 1–4 点使用相同的 704 次属性评估预算。第 1 点记录 Validity、Atom
+Stability、Morgan、MCS、Murcko、BRICS 片段、3D MCS-RMSD 和目标改善；
+第 4 点记录 HV、骨架数、内部 Tanimoto、最近邻距离分布和 MCS 冗余。
+
+第 5 点可先验证配置，且只使用 EGNN 属性预测器：
 
 ```bash
 source scripts/_activate_env.sh
@@ -220,7 +250,36 @@ python -m demo_runtime.qm9_cmop \
   --validate-config
 ```
 
-正式启动 20 个种子：
+第 6 点只使用 PoseBusters、MMFF94/UFF、Open Babel、QVina 和独立的几何
+相互作用重评分，不调用 xTB 或 DFT。
+
+第 8 点的 `protocol_hv_100k` 成本显著高于其他任务，可单独运行：
+
+```bash
+bash scripts/run_suite.sh \
+  --suite reviewer_protocol \
+  --task protocol_hv_100k \
+  --gpus 0,1,2,3 \
+  --skip-completed \
+  --plot \
+  --summarize
+```
+
+## 9. 重复设置说明
+
+- `scheduler_validity_stability` 与 QM9-CMOP 默认调度器属于同一机制；新增
+  命令使用固定 704 评估预算，所以结果身份不重复。
+- `distance_mixed_2d_3d` 与原 SAES 的 2D+3D 距离定义相同；新增命令用于
+  同预算距离消融，不能直接复用旧预算结果。
+- `protocol_hv_d` 与默认 full 方法核心路径相同，但额外启用 QM9 训练集
+  最近邻/骨架新颖性，并固定预算为 D=704。
+- 第 3 点的 SPEA2、Top-N 与论文表 3/4 的方法名相同，但问题变为真实
+  QM9-CMOP、指标和预算也不同，不是同一运行。
+- 表 1/2 的 SR 与 SE、表 5 的 Only-PC/Only-C 仍按前文说明各只启动一次。
+
+## 10. 一键运行全部修改实验
+
+只运行审稿新增 8 点：
 
 ```bash
 bash scripts/run_reviewer_additions.sh \
@@ -228,22 +287,7 @@ bash scripts/run_reviewer_additions.sh \
   --results-root results/reviewer_additions
 ```
 
-也可以直接运行套件：
-
-```bash
-bash scripts/run_suite.sh \
-  --suite qm9_cmop \
-  --gpus 0,1,2,3 \
-  --skip-completed \
-  --plot \
-  --summarize
-```
-
-自定义问题时复制
-`configs/problems/qm9_frontier_alignment.json`，并在自定义 suite 的
-`identity_files` 中登记新配置路径。
-
-## 9. 一键运行本次已落实的全部实验
+论文表 1–5 加审稿新增 8 点：
 
 ```bash
 bash scripts/run_all_revision.sh \
@@ -251,8 +295,7 @@ bash scripts/run_all_revision.sh \
   --results-root results/revision
 ```
 
-这条命令等价于“论文表 1–5 的本地方法 + 可自定义 QM9-CMOP”。可加
-`--dry-run` 先检查，不加载模型：
+可加 `--dry-run` 只检查全部命令展开和 GPU 分配，不加载模型：
 
 ```bash
 bash scripts/run_all_revision.sh \
@@ -261,7 +304,7 @@ bash scripts/run_all_revision.sh \
   --dry-run
 ```
 
-## 10. 重构前后一致性检查
+## 11. 重构前后一致性检查
 
 在参考文件仍位于相邻 `GeoLDM` 目录时：
 
@@ -281,15 +324,5 @@ python -m demo_runtime.consistency \
 核心方法目录 `evo.py`、`MOEA/`、`egnn/` 和
 `equivariant_diffusion/` 不在本次消融迁移的修改范围内。
 
-## 11. 尚未伪造为命令的实验
-
-下列审稿实验没有可直接复用的实现或必要外部程序，因此本次没有用占位命令
-冒充已完成：
-
-- cEDM 等外部方法基线；
-- 继承/噪声、2D/3D 距离、三种群迁移等新的机制诊断；
-- scaffold diversity 和 Docking PoseBusters/相互作用分析；
-- 需要新的统一预算定义才能严格比较的 HV(D)/HV(100K)。
-
-这些实验需要先确定数据、预算、指标定义和算法入口，再加入独立 suite。
-当前 `run_all_revision.sh` 只覆盖已有实现且已经过接口标准化的实验。
+新增审稿功能均位于 `demo_runtime/` 的可选诊断/协议接口，或者由环境变量
+显式启用的 task8 只读审计钩子；未修改上述核心算法目录。

@@ -1,0 +1,37 @@
+{
+  "suite_id": "reviewer_docking_validation",
+  "description": "PoseBusters, MMFF/UFF relaxation, QVina redocking, interaction fingerprint, independent rescoring, and mode diversity.",
+  "seeds": [42],
+  "tasks": [
+    {
+      "id": "cd_pose_credibility",
+      "type": "docking_validation",
+      "problem": "bundled_cd_pose_validation",
+      "method": "QVina+PoseBusters+MMFF/UFF",
+      "module": "demo_runtime.docking_validation",
+      "args": [
+        "--complex-root", "CDtest",
+        "--receptor-pdbqt-root", "pdbqt/CD",
+        "--max-complexes", "10",
+        "--exhaustiveness", "2",
+        "--seed", "{seed}"
+      ],
+      "identity_files": [
+        "demo_runtime/docking_validation.py"
+      ]
+    }
+  ],
+  "summary_metrics": [
+    {"name": "validation_success_rate", "direction": "max"},
+    {"name": "posebusters_original_pass_rate", "direction": "max"},
+    {"name": "posebusters_relaxed_pass_rate", "direction": "max"},
+    {"name": "relaxation_rmsd", "direction": "min"},
+    {"name": "strain_energy_release", "direction": "max"},
+    {"name": "qvina_best_score", "direction": "min"},
+    {"name": "rescoring_consistency_pearson", "direction": "max"},
+    {"name": "interaction_fingerprint_pass_rate", "direction": "max"},
+    {"name": "interaction_fingerprint_category_retention", "direction": "max"},
+    {"name": "binding_mode_diversity", "direction": "max"},
+    {"name": "docked_clash_count", "direction": "min"}
+  ]
+}
